@@ -44,6 +44,28 @@ A web-based dashboard for soldiers to access training modules on social media ri
 - Configure environment variables for security.
 - Use HTTPS.
 
+## Environment Variables
+- `AWARENESS_SECRET_KEY`: Django secret key (required, production only)
+- `AWARENESS_DEBUG`: Set to `False` in production, `True` for development
+- `AWARENESS_ALLOWED_HOSTS`: Comma-separated list of allowed hosts (e.g. `localhost,127.0.0.1,example.com`)
+- `DATABASE_URL`: (Optional) Full database URL for production (e.g. `postgres://user:pass@host:5432/dbname`)
+- `AWARENESS_ADMIN_DASHBOARD`: (Optional) URL name for admin dashboard redirect (default: `dashboard:admin`)
+- `AWARENESS_SOLDIER_DASHBOARD`: (Optional) URL name for soldier dashboard redirect (default: `dashboard:home`)
+- `DEFAULT_FROM_EMAIL`: (Optional) Email address for outgoing mail
+
+## Linting & Formatting
+- Run `python -m flake8` for lint checks.
+- Run `black .` to auto-format code.
+
+## Docker
+- Build and run with Docker Compose:
+   ```powershell
+   docker compose up --build
+   ```
+
+## CI/CD
+- GitHub Actions runs tests, lint, and Docker build on push.
+
 ---
 
 Replace this README with more detailed documentation as the project evolves.
