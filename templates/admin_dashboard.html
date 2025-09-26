@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>Admin Dashboard</h2>
+  <p>Site summary</p>
+  <div>
+    <h3>Recent quiz attempts</h3>
+    {% if attempts %}
+      <ul>
+        {% for a in attempts %}
+          <li>{{ a.user.username }} — {{ a.quiz.title }} — {{ a.score }}% ({{ a.taken_at }})</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>No attempts yet.</p>
+    {% endif %}
+  </div>
+  <div>
+    <p>Training modules with progress: {{ module_count }}</p>
+  </div>
+  <p><a href="/admin/">Go to full Django admin</a></p>
+{% endblock %}

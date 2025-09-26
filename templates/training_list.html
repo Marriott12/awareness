@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>Training Modules</h2>
+  <ul>
+    {% for m in modules %}
+      <li>
+        <a href="{% url 'module_detail' m.slug %}">{{ m.title }}</a>
+        {% if m.id in completed %}
+          <strong>(Completed)</strong>
+        {% endif %}
+      </li>
+    {% empty %}
+      <li>No modules available</li>
+    {% endfor %}
+  </ul>
+{% endblock %}

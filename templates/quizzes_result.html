@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>Results for {{ quiz.title }}</h2>
+  <p>Your score: {{ score }}%</p>
+  <p>Correct: {{ correct }} / {{ total }}</p>
+  {% if details %}
+    <h3>Question feedback</h3>
+    <ul>
+      {% for d in details %}
+        <li>
+          <strong>{{ forloop.counter }}.</strong> {{ d.question.text }}<br>
+          Your answer: {% if d.selected %}{{ d.selected.text }}{% else %}<em>No answer</em>{% endif %}<br>
+          {% if d.is_correct %}<span style="color:green">Correct</span>{% else %}<span style="color:red">Incorrect</span>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  <p><a href="/quizzes/">Back to quizzes</a></p>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>{{ module.title }}</h2>
+  <div class="module-content">
+    {{ module.content|linebreaks }}
+  </div>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit">Mark as complete</button>
+  </form>
+  <p><a href="{% url 'training_list' %}">Back to modules</a></p>
+{% endblock %}

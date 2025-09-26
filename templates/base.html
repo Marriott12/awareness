@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Awareness Web Portal</title>
+  <link rel="stylesheet" href="/static/css/site.css">
+</head>
+<body>
+<header>
+  <nav class="nav">
+    {% if user.is_authenticated %}
+      <a href="/dashboard/">Dashboard</a>
+      <a href="/training/">Training</a>
+      <a href="/quizzes/">Quizzes</a>
+      <a href="/case-studies/">Case Studies</a>
+      <span class="right">Logged in as {{ user.username }} | <a href="/accounts/logout/">Logout</a></span>
+    {% else %}
+      <a href="/accounts/login/">Login</a>
+    {% endif %}
+  </nav>
+</header>
+<main class="container">
+  {% block content %}{% endblock %}
+</main>
+<footer>
+  <p>Awareness Web Portal — training and quizzes for social media OPSEC</p>
+</footer>
+</body>
+</html>
