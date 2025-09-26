@@ -1,0 +1,5 @@
+[flake8]
+exclude = .venv,venv,build,dist,*.egg-info,staticfiles,*/migrations/*,dashboard/models.py
+max-line-length = 120
+extend-ignore = E203,W503
+ignore = F403,F405,W391

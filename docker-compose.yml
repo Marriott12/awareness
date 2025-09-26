@@ -19,8 +19,16 @@ services:
       - POSTGRES_USER=awareness
       - POSTGRES_PASSWORD=awareness
       - AWARENESS_ALLOWED_HOSTS=localhost,127.0.0.1
+      - AWARENESS_DEBUG=False
+      - AWARENESS_STATICFILES_STORAGE=whitenoise.storage.CompressedManifestStaticFilesStorage
+      - AWARENESS_DEFAULT_FROM_EMAIL=webmaster@localhost
     depends_on:
       - db
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
 volumes:
   db_data:

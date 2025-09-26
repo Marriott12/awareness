@@ -4,26 +4,26 @@ from .models import QuizAttempt, QuizResponse
 
 
 class ChoiceInline(admin.TabularInline):
-	model = Choice
+    model = Choice
 
 
 class QuestionAdmin(admin.ModelAdmin):
-	inlines = [ChoiceInline]
+    inlines = [ChoiceInline]
 
 
 @admin.register(Quiz)
 class QuizAdmin(admin.ModelAdmin):
-	list_display = ('title',)
+    list_display = ("title",)
 
 
 class QuizResponseInline(admin.TabularInline):
-	model = QuizResponse
+    model = QuizResponse
 
 
 @admin.register(QuizAttempt)
 class QuizAttemptAdmin(admin.ModelAdmin):
-	list_display = ('user', 'quiz', 'score', 'taken_at')
-	inlines = [QuizResponseInline]
+    list_display = ("user", "quiz", "score", "taken_at")
+    inlines = [QuizResponseInline]
 
 
 admin.site.register(Question, QuestionAdmin)

@@ -4,10 +4,10 @@ from .models import TrainingModule, TrainingProgress
 
 @admin.register(TrainingModule)
 class TrainingModuleAdmin(admin.ModelAdmin):
-	list_display = ('title', 'slug', 'order')
-	prepopulated_fields = {"slug": ("title",)}
+    list_display = ("title", "slug", "order")
+    prepopulated_fields = {"slug": ("title",)}
 
 
 @admin.register(TrainingProgress)
 class TrainingProgressAdmin(admin.ModelAdmin):
-	list_display = ('user', 'module', 'completed_at')
+    list_display = ("user", "module", "completed_at")

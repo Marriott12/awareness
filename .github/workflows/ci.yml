@@ -8,8 +8,11 @@ on:
 
 jobs:
   test:
-    name: Run tests
+    name: Run tests on Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11']
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,15 +20,24 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Lint (flake8)
+        run: |
+          pip install flake8
+          flake8 --max-line-length=120
+
       - name: Run migrations (sqlite)
         run: python manage.py migrate --noinput
+
+      - name: Collect static
+        run: |
+          python manage.py collectstatic --noinput
 
       - name: Run tests
         run: python manage.py test --verbosity=2
@@ -46,7 +58,77 @@ jobs:
 
       - name: Build Docker image
         uses: docker/build-push-action@v4
+        id: build
         with:
           context: .
           push: false
           tags: awareness:ci
+
+  integration-postgres:
+    name: Integration tests (Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: awareness
+          POSTGRES_USER: awareness
+          POSTGRES_PASSWORD: awareness
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U awareness -d awareness"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do pg_isready -h localhost -p 5432 && break || sleep 1; done
+
+      - name: Configure DB settings
+        run: |
+          export DATABASE_URL=postgres://awareness:awareness@localhost:5432/awareness
+
+      - name: Run migrations
+        run: |
+          python manage.py migrate --noinput
+
+      - name: Run tests
+        run: |
+          python manage.py test --verbosity=2
+
+  publish:
+    name: Publish Docker image (optional)
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && secrets.DOCKER_USERNAME && secrets.DOCKER_PASSWORD
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/awareness:latest

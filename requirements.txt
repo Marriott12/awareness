@@ -1,5 +1,11 @@
-Django>=4.2
+Django>=4.2,<6
 requests
 beautifulsoup4
 markdown
 gunicorn
+
+# Production helpers
+dj-database-url
+whitenoise
+psycopg2-binary
+flake8
