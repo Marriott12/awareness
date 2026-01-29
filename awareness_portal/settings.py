@@ -39,8 +39,6 @@ ALLOWED_HOSTS = [
 ]
 
 
-# Application definition
-
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -173,6 +171,7 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+
 # --- Security settings (sensible defaults; override in production-specific settings) ---
 if not DEBUG:
     # Redirect all non-HTTPS to HTTPS when not in debug
@@ -189,6 +188,11 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = os.environ.get(
         "AWARENESS_SECURE_HSTS_PRELOAD", "False"
     ).lower() in ("1", "true", "yes")
+else:
+    # Development: allow cookies over HTTP and set samesite for local testing
+    SESSION_COOKIE_SECURE = False  # WARNING: Do not use in production
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_SECURE = False
 
 # CSRF trusted origins (comma separated)
 if os.environ.get("AWARENESS_CSRF_TRUSTED_ORIGINS"):
@@ -199,7 +203,7 @@ if os.environ.get("AWARENESS_CSRF_TRUSTED_ORIGINS"):
     ]
 
 # Basic logging configuration — override or extend in production if desired
-LOG_LEVEL = os.environ.get("AWARENESS_LOG_LEVEL", "INFO")
+LOG_LEVEL = os.environ.get("AWARENESS_LOG_LEVEL", "DEBUG")
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -216,6 +220,23 @@ LOGGING = {
     "root": {
         "handlers": ["console"],
         "level": LOG_LEVEL,
+    },
+    "loggers": {
+        "django.contrib.sessions": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "django.contrib.auth": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
     },
 }
 

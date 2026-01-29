@@ -20,6 +20,7 @@ from django.urls import path, include
 from django.shortcuts import redirect
 from django.urls import reverse
 from authentication.views import RoleLoginView
+from authentication import debug_views
 
 
 def index(request):
@@ -43,4 +44,7 @@ urlpatterns = [
         name="login",
     ),
     path("accounts/", include("django.contrib.auth.urls")),
+    # Debug endpoint for authentication/session/cookie issues
+    path("debug/auth-status/", debug_views.debug_auth_status, name="debug_auth_status"),
+    path("debug/session-test/", debug_views.session_test, name="debug_session_test"),
 ]

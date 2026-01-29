@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
 from quizzes.models import QuizAttempt
 from training.models import TrainingProgress
@@ -7,9 +7,10 @@ from django.contrib.auth import get_user_model
 
 @login_required
 def home(request):
-    # route to admin dashboard if staff/superuser
+    # Redirect staff/superuser to admin dashboard URL
     if request.user.is_staff or request.user.is_superuser:
-        return admin_dashboard(request)
+        from django.urls import reverse
+        return redirect(reverse("dashboard:admin"))
     return user_dashboard(request)
 
 

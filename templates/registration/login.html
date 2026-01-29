@@ -2,21 +2,39 @@
 {% block content %}
   <div class="login-box">
     <h2>Sign in to Awareness</h2>
-  {% if form.errors %}
-    <p class="error">Please correct the errors below.</p>
-  {% endif %}
-  <form method="post" action=".">
-    {% csrf_token %}
-    <div>
-      <label for="id_username">Username:</label>
-      {{ form.username }}
-    </div>
-    <div>
-      <label for="id_password">Password:</label>
-      {{ form.password }}
-    </div>
-    <button type="submit">Log in</button>
-  </form>
-  <p><a href="{% url 'password_reset' %}">Forgot password?</a></p>
+    {# Debug: show if user is already authenticated #}
+    {% if user.is_authenticated %}
+      <div style="color: orange;">[Debug] You are already logged in as {{ user.username }}.</div>
+    {% endif %}
+    {# Always show non-field errors, even if empty #}
+    <ul class="errorlist">
+      {% for error in form.non_field_errors %}
+        <li>{{ error }}</li>
+      {% empty %}
+        <li style="color: #888;">[Debug] No non-field errors.</li>
+      {% endfor %}
+    </ul>
+    {% if form.errors %}
+      <ul class="errorlist">
+        {% for field in form %}
+          {% for error in field.errors %}
+            <li>{{ field.label }}: {{ error }}</li>
+          {% endfor %}
+        {% endfor %}
+      </ul>
+    {% endif %}
+    <form method="post" action=".">
+      {% csrf_token %}
+      <div>
+        <label for="id_username">Username:</label>
+        {{ form.username }}
+      </div>
+      <div>
+        <label for="id_password">Password:</label>
+        {{ form.password }}
+      </div>
+      <button type="submit">Log in</button>
+    </form>
+    <p><a href="{% url 'password_reset' %}">Forgot password?</a></p>
   </div>
 {% endblock %}
