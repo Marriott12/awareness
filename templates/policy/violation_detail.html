@@ -1,0 +1,8 @@
+<h1>Violation Detail</h1>
+<p>Policy: {{ violation.policy.name }}</p>
+<p>Control: {{ violation.control.name }}</p>
+<p>Rule: {{ violation.rule.name if violation.rule }}</p>
+<p>User: {{ violation.user.username if violation.user }}</p>
+<p>Timestamp: {{ violation.timestamp }}</p>
+<h2>Evidence</h2>
+<pre>{{ evidence|safe }}</pre>

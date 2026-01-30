@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "authentication",
     "dashboard",
+    "policy",
     "training",
     "quizzes",
     "case_studies",

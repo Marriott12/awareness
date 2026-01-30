@@ -47,4 +47,6 @@ urlpatterns = [
     # Debug endpoint for authentication/session/cookie issues
     path("debug/auth-status/", debug_views.debug_auth_status, name="debug_auth_status"),
     path("debug/session-test/", debug_views.session_test, name="debug_session_test"),
+    # Policy governance views
+    path("policy/", include("policy.urls", namespace="policy")),
 ]

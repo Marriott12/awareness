@@ -1,0 +1,13 @@
+<h1>Compliance Dashboard</h1>
+<h2>Violations by Policy</h2>
+<ul>
+{% for p in by_policy %}
+  <li>{{ p.policy__name }}: {{ p.total }}</li>
+{% endfor %}
+</ul>
+<h2>Recent Violations</h2>
+<ul>
+{% for v in recent %}
+  <li><a href="{% url 'policy:violation_detail' v.id %}">{{ v.policy.name }} / {{ v.control.name }} @ {{ v.timestamp }}</a></li>
+{% endfor %}
+</ul>

@@ -33,13 +33,19 @@ jobs:
           flake8 --max-line-length=120
 
       - name: Run migrations (sqlite)
-        run: python manage.py migrate --noinput
+        run: |
+          python manage.py migrate --noinput
+          # ensure static files dir exists for collectstatic
+          mkdir -Force static || true
 
       - name: Collect static
         run: |
           python manage.py collectstatic --noinput
 
       - name: Run tests
+        env:
+          DJANGO_SETTINGS_MODULE: awareness_portal.settings
+          EVIDENCE_SIGNING_KEY: ${{ secrets.EVIDENCE_SIGNING_KEY }}
         run: python manage.py test --verbosity=2
 
   build:

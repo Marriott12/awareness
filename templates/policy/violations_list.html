@@ -1,0 +1,13 @@
+<h1>Violations</h1>
+<table>
+  <tr><th>Policy</th><th>Control</th><th>Rule</th><th>User</th><th>Time</th></tr>
+  {% for v in violations %}
+  <tr>
+    <td>{{ v.policy.name }}</td>
+    <td>{{ v.control.name }}</td>
+    <td>{{ v.rule.name if v.rule }}</td>
+    <td>{{ v.user.username if v.user }}</td>
+    <td><a href="{% url 'policy:violation_detail' v.id %}">{{ v.timestamp }}</a></td>
+  </tr>
+  {% endfor %}
+</table>

@@ -3,14 +3,17 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from quizzes.models import QuizAttempt
 from training.models import TrainingProgress
 from django.contrib.auth import get_user_model
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @login_required
 def home(request):
-    # Redirect staff/superuser to admin dashboard URL
+    logger.debug('dashboard.home called; user=%s authenticated=%s is_staff=%s is_superuser=%s', request.user, request.user.is_authenticated, getattr(request.user, 'is_staff', False), getattr(request.user, 'is_superuser', False))
+    # For staff/superuser render admin dashboard directly (avoid redirect)
     if request.user.is_staff or request.user.is_superuser:
-        from django.urls import reverse
-        return redirect(reverse("dashboard:admin"))
+        return admin_dashboard(request)
     return user_dashboard(request)
 
 
