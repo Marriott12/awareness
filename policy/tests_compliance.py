@@ -9,7 +9,7 @@ class ComplianceEngineTests(TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user('comp', 'c@x.com', 'pw')
-        self.policy = Policy.objects.create(name='Telemetry Policy')
+        self.policy = Policy.objects.create(name='Telemetry Policy', lifecycle='active')
         self.ctrl = Control.objects.create(policy=self.policy, name='Auth Control', severity='high')
         # Example rules (engine records violations when a rule evaluates False).
         # To express forbidden condition "event.type == 'auth' and remote == 1.2.3.4"

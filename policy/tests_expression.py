@@ -9,7 +9,7 @@ class ExpressionEvaluationTests(TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user('expr', 'e@x.com', 'pw')
-        self.policy = Policy.objects.create(name='Expr Policy')
+        self.policy = Policy.objects.create(name='Expr Policy', lifecycle='active')
         self.ctrl = Control.objects.create(policy=self.policy, name='Expr Control', severity='medium')
         # Rules: these assert allowed states; evaluation returns False when the expectation is violated
         self.rule_a = Rule.objects.create(control=self.ctrl, name='Rule A', left_operand='event.type', operator='!=', right_value='auth')

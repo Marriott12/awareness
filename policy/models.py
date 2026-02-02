@@ -17,7 +17,19 @@ class Policy(models.Model):
     version = models.CharField(max_length=64, default='1.0')
     # lifecycle: draft -> review -> active -> retired
     LIFECYCLE_CHOICES = (('draft','Draft'), ('review','Review'), ('active','Active'), ('retired','Retired'))
-    lifecycle = models.CharField(max_length=16, choices=LIFECYCLE_CHOICES, default='draft', help_text='Policy lifecycle state')
+    lifecycle = models.CharField(max_length=16, choices=LIFECYCLE_CHOICES, default='draft', help_text='Policy lifecycle state', db_index=True)
+    # Workflow metadata
+    notification_channel = models.CharField(max_length=200, blank=True, help_text='Email, webhook, or channel for violation notifications')
+    sla_hours = models.PositiveIntegerField(null=True, blank=True, help_text='SLA response time in hours')
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['name', 'lifecycle'],
+                condition=models.Q(lifecycle='active'),
+                name='unique_active_policy_per_name'
+            )
+        ]
 
     def __str__(self):
         return self.name
@@ -31,9 +43,6 @@ class PolicyHistory(models.Model):
 
     class Meta:
         ordering = ('-created_at',)
-        permissions = (('export_evidence', 'Can export evidence'),)
-
-    class Meta:
         permissions = (('export_evidence', 'Can export evidence'),)
 
     def __str__(self):
@@ -328,4 +337,30 @@ class ScorerArtifact(models.Model):
 
     def __str__(self):
         return f"Scorer {self.name} v{self.version} ({self.sha256})"
+
+
+class ViolationActionLog(models.Model):
+    """Immutable append-only log of actions taken on violations.
+    
+    Never update Violation fields silently; log all state changes here.
+    """
+    ACTION_CHOICES = (
+        ('acknowledge', 'Acknowledge'),
+        ('resolve', 'Resolve'),
+        ('reopen', 'Reopen'),
+        ('escalate', 'Escalate'),
+        ('comment', 'Comment'),
+    )
+    
+    violation = models.ForeignKey(Violation, on_delete=models.CASCADE, related_name='action_log')
+    action = models.CharField(max_length=32, choices=ACTION_CHOICES)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    details = models.JSONField(blank=True, null=True, help_text='Optional metadata for this action')
+    
+    class Meta:
+        ordering = ('-timestamp',)
+    
+    def __str__(self):
+        return f"{self.get_action_display()} on {self.violation} by {self.actor} @ {self.timestamp.isoformat()}"
 

@@ -40,6 +40,11 @@ class ComplianceEngine:
         return ctx
 
     def evaluate_event(self, event: HumanLayerEvent, policy: Policy, user=None) -> Dict[str, Any]:
+        # Only evaluate policies in ACTIVE lifecycle
+        if policy.lifecycle != 'active':
+            logger.debug(f'Skipping policy {policy.name} (lifecycle={policy.lifecycle}, must be active)')
+            return {'event_id': str(event.id), 'policy': policy.name, 'skipped': True, 'reason': 'policy not active'}
+        
         ctx = self._event_to_context(event)
         res = {'event_id': str(event.id), 'policy': policy.name, 'violations': []}
         # Attach policy version for traceability

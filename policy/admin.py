@@ -1,5 +1,5 @@
 from django.contrib import admin, messages
-from .models import Policy, Control, Rule, Threshold, Violation
+from .models import Policy, Control, Rule, Threshold, Violation, ViolationActionLog
 from .models import Evidence, HumanLayerEvent
 from .models import ExportAudit
 from django.utils import timezone
@@ -94,22 +94,32 @@ class ViolationAdmin(admin.ModelAdmin):
 
     def acknowledge_selected(self, request, queryset):
         from django.utils import timezone
-        from .models import HumanLayerEvent
+        from .models import ViolationActionLog
 
         updated = queryset.filter(acknowledged=False).update(acknowledged=True, acknowledged_at=timezone.now(), acknowledged_by=request.user)
-        # log events for each acknowledged violation
+        # Log action to immutable action log
         for v in queryset.filter(acknowledged=True):
-            HumanLayerEvent.objects.create(user=request.user, event_type='admin', source='admin.action', summary='violation_acknowledged', details={'violation_id': v.id}, related_violation=v)
+            ViolationActionLog.objects.create(
+                violation=v,
+                action='acknowledge',
+                actor=request.user,
+                details={'source': 'admin_bulk_action'}
+            )
         self.message_user(request, f"Acknowledged {updated} violations")
     acknowledge_selected.short_description = 'Acknowledge selected violations'
 
     def resolve_selected(self, request, queryset):
         from django.utils import timezone
-        from .models import HumanLayerEvent
+        from .models import ViolationActionLog
 
         updated = queryset.filter(resolved=False).update(resolved=True, resolved_at=timezone.now(), resolved_by=request.user)
         for v in queryset.filter(resolved=True):
-            HumanLayerEvent.objects.create(user=request.user, event_type='admin', source='admin.action', summary='violation_resolved', details={'violation_id': v.id}, related_violation=v)
+            ViolationActionLog.objects.create(
+                violation=v,
+                action='resolve',
+                actor=request.user,
+                details={'source': 'admin_bulk_action'}
+            )
         self.message_user(request, f"Resolved {updated} violations")
     resolve_selected.short_description = 'Resolve selected violations'
 
@@ -151,6 +161,22 @@ class EvidenceAdmin(admin.ModelAdmin):
     list_display = ('policy', 'violation', 'created_at')
     readonly_fields = ('policy', 'violation', 'payload', 'created_at')
     search_fields = ('policy__name', 'violation__id')
+
+
+@admin.register(ViolationActionLog)
+class ViolationActionLogAdmin(admin.ModelAdmin):
+    list_display = ('violation', 'action', 'actor', 'timestamp')
+    list_filter = ('action',)
+    readonly_fields = ('violation', 'action', 'actor', 'timestamp', 'details')
+    search_fields = ('violation__id', 'actor__username')
+
+    def has_add_permission(self, request):
+        # Action log is append-only from application logic
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        # Immutable
+        return False
 
 
 @admin.register(HumanLayerEvent)
