@@ -1,3 +1,28 @@
+# Python
+*.pyc
+__pycache__/
+*.pyo
+.Python
+env/
+venv/
+.venv/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+media/
+
+# VSCode
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Byte-compiled / optimized / DLL files
+*.py[cod]
+*$py.class
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
