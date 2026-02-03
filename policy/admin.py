@@ -2,6 +2,7 @@ from django.contrib import admin, messages
 from .models import Policy, Control, Rule, Threshold, Violation, ViolationActionLog
 from .models import Evidence, HumanLayerEvent, PolicyHistory
 from .models import ExportAudit, Experiment, SyntheticUser, GroundTruthLabel, DetectionMetric, ScorerArtifact
+from .models import KeyRotationLog, GDPRDeletionLog, ImmutabilityBypassLog
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.conf import settings
@@ -269,3 +270,52 @@ class ScorerArtifactAdmin(admin.ModelAdmin):
     list_display = ('name', 'version', 'sha256', 'created_at')
     search_fields = ('name', 'version', 'sha256')
     readonly_fields = ('created_at',)
+
+
+@admin.register(KeyRotationLog)
+class KeyRotationLogAdmin(admin.ModelAdmin):
+    list_display = ('record_type', 'record_id', 'key_version', 'rotated_at', 'rotated_by')
+    list_filter = ('record_type', 'key_version', 'rotated_at')
+    search_fields = ('record_id',)
+    readonly_fields = ('record_type', 'record_id', 'old_signature', 'new_signature', 'key_version', 'rotated_at', 'rotated_by')
+    
+    def has_add_permission(self, request):
+        # Created automatically by key rotation command
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        # Audit trail should be immutable
+        return request.user.is_superuser
+
+
+@admin.register(GDPRDeletionLog)
+class GDPRDeletionLogAdmin(admin.ModelAdmin):
+    list_display = ('username', 'user_id', 'deleted_at', 'deleted_by', 'violations_count', 'events_count')
+    list_filter = ('deleted_at',)
+    search_fields = ('username', 'email', 'confirmation_code')
+    readonly_fields = ('user_id', 'username', 'email', 'deleted_at', 'deleted_by', 'violations_count', 'events_count', 'reason', 'confirmation_code')
+    
+    def has_add_permission(self, request):
+        # Created automatically by GDPR compliance command
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        # Must retain deletion logs for compliance
+        return False
+
+
+@admin.register(ImmutabilityBypassLog)
+class ImmutabilityBypassLogAdmin(admin.ModelAdmin):
+    list_display = ('model_name', 'record_id', 'operation', 'attempted_by', 'attempted_at', 'success')
+    list_filter = ('model_name', 'operation', 'success', 'attempted_at')
+    search_fields = ('record_id', 'attempted_by__username', 'ip_address')
+    readonly_fields = ('model_name', 'record_id', 'operation', 'attempted_by', 'attempted_at', 'ip_address', 'user_agent', 'success', 'details')
+    
+    def has_add_permission(self, request):
+        # Created automatically by immutability middleware
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        # Security audit trail should never be deleted
+        return False
+

@@ -369,3 +369,98 @@ class ViolationActionLog(models.Model):
     def __str__(self):
         return f"{self.get_action_display()} on {self.violation} by {self.actor} @ {self.timestamp.isoformat()}"
 
+
+class KeyRotationLog(models.Model):
+    """Audit trail for cryptographic key rotation operations.
+    
+    Records old and new signatures for each rotated record,
+    enabling verification of rotation integrity.
+    """
+    record_type = models.CharField(max_length=64, help_text='Model name (Evidence, HumanLayerEvent, etc.)')
+    record_id = models.CharField(max_length=128, help_text='Primary key of rotated record')
+    old_signature = models.TextField(help_text='Original signature before rotation')
+    new_signature = models.TextField(help_text='New signature after rotation')
+    key_version = models.IntegerField(help_text='New key version number')
+    rotated_at = models.DateTimeField(db_index=True)
+    rotated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    
+    class Meta:
+        verbose_name = "Key rotation log"
+        verbose_name_plural = "Key rotation logs"
+        ordering = ('-rotated_at',)
+        indexes = [
+            models.Index(fields=['record_type', 'record_id']),
+        ]
+    
+    def __str__(self):
+        return f"Key rotation {self.record_type} {self.record_id} to v{self.key_version}"
+
+
+class GDPRDeletionLog(models.Model):
+    """Audit trail for GDPR data deletion requests.
+    
+    Preserves minimal audit information after user data is deleted,
+    complying with right to erasure while maintaining compliance evidence.
+    """
+    user_id = models.IntegerField(help_text='ID of deleted user (preserved for audit)')
+    username = models.CharField(max_length=150, help_text='Username at time of deletion')
+    email = models.EmailField(help_text='Email at time of deletion')
+    deleted_at = models.DateTimeField(db_index=True)
+    deleted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='gdpr_deletions_performed')
+    violations_count = models.IntegerField(default=0)
+    events_count = models.IntegerField(default=0)
+    reason = models.TextField(help_text='Reason for deletion (e.g., GDPR Right to Erasure)')
+    confirmation_code = models.CharField(max_length=64, unique=True, help_text='Unique confirmation code for verification')
+    
+    class Meta:
+        verbose_name = "GDPR deletion log"
+        verbose_name_plural = "GDPR deletion logs"
+        ordering = ('-deleted_at',)
+    
+    def save(self, *args, **kwargs):
+        if not self.confirmation_code:
+            import secrets
+            self.confirmation_code = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"GDPR deletion: {self.username} (ID {self.user_id}) on {self.deleted_at}"
+
+
+class ImmutabilityBypassLog(models.Model):
+    """Audit log for attempted immutability bypasses.
+    
+    Records all attempts to modify or delete immutable records,
+    whether successful or failed, for security monitoring.
+    """
+    OPERATION_CHOICES = (
+        ('update', 'Update Attempt'),
+        ('delete', 'Delete Attempt'),
+        ('bulk_update', 'Bulk Update Attempt'),
+        ('bulk_delete', 'Bulk Delete Attempt'),
+    )
+    
+    model_name = models.CharField(max_length=64)
+    record_id = models.CharField(max_length=128, help_text='Primary key of target record')
+    operation = models.CharField(max_length=32, choices=OPERATION_CHOICES)
+    attempted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    attempted_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    success = models.BooleanField(default=False, help_text='Whether bypass was successful')
+    details = models.JSONField(blank=True, null=True, help_text='Additional context about the attempt')
+    
+    class Meta:
+        verbose_name = "Immutability bypass log"
+        verbose_name_plural = "Immutability bypass logs"
+        ordering = ('-attempted_at',)
+        indexes = [
+            models.Index(fields=['model_name', 'record_id']),
+            models.Index(fields=['attempted_by', 'attempted_at']),
+        ]
+    
+    def __str__(self):
+        status = 'SUCCESS' if self.success else 'BLOCKED'
+        return f"{status}: {self.get_operation_display()} on {self.model_name} {self.record_id}"
+
+
