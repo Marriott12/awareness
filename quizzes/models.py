@@ -7,6 +7,9 @@ class Quiz(models.Model):
         null=True, blank=True, help_text="Optional per-user attempt limit"
     )
 
+    class Meta:
+        verbose_name_plural = "Quizzes"
+
     def __str__(self):
         return self.title
 
@@ -14,6 +17,9 @@ class Quiz(models.Model):
 class Question(models.Model):
     quiz = models.ForeignKey(Quiz, related_name="questions", on_delete=models.CASCADE)
     text = models.TextField()
+
+    class Meta:
+        verbose_name_plural = "Questions"
 
     def __str__(self):
         return self.text[:50]
@@ -26,6 +32,9 @@ class Choice(models.Model):
     text = models.CharField(max_length=400)
     is_correct = models.BooleanField(default=False)
 
+    class Meta:
+        verbose_name_plural = "Choices"
+
     def __str__(self):
         return self.text
 
@@ -35,6 +44,9 @@ class QuizAttempt(models.Model):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
     score = models.FloatField()
     taken_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name_plural = "Quiz attempts"
 
     def __str__(self):
         return f"{self.user.username} - {self.quiz.title} - {self.score}"
@@ -46,7 +58,8 @@ class QuizResponse(models.Model):
     )
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     selected = models.ForeignKey(Choice, on_delete=models.CASCADE)
-
+    class Meta:
+        verbose_name_plural = "Quiz responses"
     def __str__(self):
         return (
             f"{self.attempt.user.username} - {self.question.id} -> {self.selected.id}"

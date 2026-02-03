@@ -20,6 +20,7 @@ class TrainingProgress(models.Model):
     completed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name_plural = "Training progress"
         ordering = ["-completed_at"]
 
     def __str__(self):

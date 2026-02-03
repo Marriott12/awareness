@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>{{ policy.name }}</h1>
+<p>{{ policy.description }}</p>
+
+<div style="background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px;">
+  <p><strong>Version:</strong> {{ policy.version }}</p>
+  <p><strong>Status:</strong> {{ policy.get_lifecycle_display }}</p>
+  <p><strong>Notification Channel:</strong> {{ policy.notification_channel|default:"Not configured" }}</p>
+  {% if policy.sla_hours %}
+    <p><strong>SLA:</strong> {{ policy.sla_hours }} hours</p>
+  {% endif %}
+</div>
+
+{% if ml_score %}
+<div style="background: {% if ml_score.risk_level == 'High' %}#ffebee{% elif ml_score.risk_level == 'Medium' %}#fff3e0{% else %}#e8f5e9{% endif %}; padding: 15px; margin: 15px 0; border-radius: 5px;">
+  <h3>🤖 ML Risk Assessment</h3>
+  <p><strong>Your Risk Score:</strong> {{ ml_score.score|floatformat:1 }}%</p>
+  <p><strong>Risk Level:</strong> {{ ml_score.risk_level }}</p>
+</div>
+{% endif %}
+
+<h2>Controls ({{ controls.count }})</h2>
+{% if controls %}
+  {% for control in controls %}
+    <div style="border-left: 4px solid {% if control.severity == 'critical' %}#d32f2f{% elif control.severity == 'high' %}#f57c00{% elif control.severity == 'medium' %}#fbc02d{% else %}#388e3c{% endif %}; padding: 10px; margin: 10px 0; background: #fafafa;">
+      <h3>{{ control.name }}</h3>
+      <p>{{ control.description }}</p>
+      <p><strong>Severity:</strong> {{ control.get_severity_display }} | <strong>Active:</strong> {{ control.active|yesno:"Yes,No" }}</p>
+      <p><strong>Rules:</strong> {{ control.rules.count }}</p>
+    </div>
+  {% endfor %}
+{% else %}
+  <p>No controls defined for this policy.</p>
+{% endif %}
+
+<h2>My Violations for This Policy ({{ my_violations.count }})</h2>
+{% if my_violations %}
+  <table style="width: 100%; border-collapse: collapse;">
+    <thead>
+      <tr style="background: #f5f5f5;">
+        <th style="padding: 10px; text-align: left;">Control</th>
+        <th style="padding: 10px; text-align: left;">Severity</th>
+        <th style="padding: 10px; text-align: left;">Timestamp</th>
+        <th style="padding: 10px; text-align: left;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for violation in my_violations %}
+        <tr style="border-bottom: 1px solid #ddd;">
+          <td style="padding: 10px;">{{ violation.control.name }}</td>
+          <td style="padding: 10px;">{{ violation.get_severity_display }}</td>
+          <td style="padding: 10px;">{{ violation.timestamp|date:"Y-m-d H:i" }}</td>
+          <td style="padding: 10px;">{{ violation.resolved|yesno:"Resolved,Open" }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p>✅ You have no violations for this policy. Great job!</p>
+{% endif %}
+
+<div style="margin-top: 20px;">
+  <a href="{% url 'policy:policies_list' %}">← Back to Policies</a>
+</div>
+{% endblock %}

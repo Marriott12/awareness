@@ -1,9 +1,17 @@
 {% extends 'base.html' %}
 {% block content %}
   <h2>Case Studies</h2>
-  <p>Real-world OPSEC breach summaries.</p>
-  <ul>
-    <li>Case Study: Operational Leak via Social Media</li>
-    <li>Case Study: Location Exposure and Recon</li>
-  </ul>
+  <p>Real-world OPSEC breach summaries and security awareness lessons.</p>
+  {% if case_studies %}
+    <ul>
+    {% for study in case_studies %}
+      <li>
+        <h3>{{ study.title }}</h3>
+        <p>{{ study.summary }}</p>
+      </li>
+    {% endfor %}
+    </ul>
+  {% else %}
+    <p>No case studies available yet. Check back later or contact your administrator.</p>
+  {% endif %}
 {% endblock %}

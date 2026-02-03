@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>🤖 ML-Powered Risk Assessment</h1>
+
+{% if not ml_enabled %}
+  <div style="background: #ffebee; padding: 20px; border-radius: 5px; margin: 20px 0;">
+    <p><strong>{{ message }}</strong></p>
+  </div>
+{% elif not ml_ready %}
+  <div style="background: #fff3e0; padding: 20px; border-radius: 5px; margin: 20px 0;">
+    <p><strong>{{ message }}</strong></p>
+  </div>
+{% else %}
+  <!-- Risk Score Display -->
+  <div style="background: {% if risk_level == 'High' %}#ffebee{% elif risk_level == 'Medium' %}#fff3e0{% else %}#e8f5e9{% endif %}; padding: 30px; text-align: center; border-radius: 10px; margin: 20px 0;">
+    <h2 style="margin: 0;">Your Risk Score</h2>
+    <div style="font-size: 72px; font-weight: bold; margin: 20px 0;">{{ risk_score }}%</div>
+    <div style="font-size: 24px; font-weight: bold;">{{ risk_level }} Risk</div>
+  </div>
+
+  <!-- User Features -->
+  <div style="margin: 30px 0;">
+    <h2>Your Security Profile</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+      <div style="background: #f5f5f5; padding: 15px; border-radius: 5px;">
+        <h3>{{ user_features.total_violations }}</h3>
+        <p>Total Violations</p>
+      </div>
+      <div style="background: #f5f5f5; padding: 15px; border-radius: 5px;">
+        <h3>{{ user_features.high_severity_violations }}</h3>
+        <p>High/Critical Violations</p>
+      </div>
+      <div style="background: #f5f5f5; padding: 15px; border-radius: 5px;">
+        <h3>{{ user_features.recent_violations }}</h3>
+        <p>Recent (30 days)</p>
+      </div>
+      <div style="background: #f5f5f5; padding: 15px; border-radius: 5px;">
+        <h3>{{ user_features.unresolved_violations }}</h3>
+        <p>Unresolved</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ML Recommendations -->
+  {% if recommendations %}
+  <div style="background: #e3f2fd; padding: 20px; border-radius: 5px; margin: 20px 0;">
+    <h2>🎯 Personalized Recommendations</h2>
+    <ul style="font-size: 16px; line-height: 1.8;">
+      {% for recommendation in recommendations %}
+        <li>{{ recommendation }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <!-- Top Violated Policies -->
+  {% if top_policies %}
+  <div style="margin: 30px 0;">
+    <h2>Most Violated Policies</h2>
+    <table style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="background: #f5f5f5;">
+          <th style="padding: 10px; text-align: left;">Policy</th>
+          <th style="padding: 10px; text-align: left;">Violations</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for policy in top_policies %}
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 10px;">{{ policy.policy__name }}</td>
+            <td style="padding: 10px;"><strong>{{ policy.count }}</strong></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Violations by Severity -->
+  {% if violations_by_severity %}
+  <div style="margin: 30px 0;">
+    <h2>Violations by Severity</h2>
+    {% for item in violations_by_severity %}
+      <div style="margin: 10px 0;">
+        <strong>{{ item.severity|title }}:</strong> {{ item.count }} violation{{ item.count|pluralize }}
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div style="margin-top: 30px; text-align: center;">
+    <p style="font-size: 14px; color: #666;">
+      This assessment is powered by machine learning models trained on policy violation patterns.<br>
+      Models used: Random Forest and Gradient Boosting classifiers.
+    </p>
+  </div>
+{% endif %}
+
+<div style="margin-top: 20px;">
+  <a href="{% url 'policy:policies_list' %}">View All Policies</a> |
+  <a href="{% url 'policy:my_violations' %}">My Violations</a> |
+  <a href="{% url 'dashboard:home' %}">Dashboard</a>
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Active Policies</h1>
+<p>View all active security policies and their controls.</p>
+
+{% if policies %}
+  <div class="policies-list">
+    {% for policy in policies %}
+      <div class="policy-card" style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
+        <h2><a href="{% url 'policy:policy_detail' policy.id %}">{{ policy.name }}</a></h2>
+        <p>{{ policy.description }}</p>
+        <p><strong>Version:</strong> {{ policy.version }} | <strong>Status:</strong> {{ policy.get_lifecycle_display }}</p>
+        <p><strong>Controls:</strong> {{ policy.controls.count }}</p>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p>No active policies found.</p>
+{% endif %}
+
+<div style="margin-top: 20px;">
+  <a href="{% url 'policy:my_violations' %}" class="btn">View My Violations</a>
+  <a href="{% url 'policy:ml_evaluation' %}" class="btn">ML Risk Assessment</a>
+</div>
+{% endblock %}

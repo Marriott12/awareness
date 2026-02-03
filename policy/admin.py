@@ -1,7 +1,7 @@
 from django.contrib import admin, messages
 from .models import Policy, Control, Rule, Threshold, Violation, ViolationActionLog
-from .models import Evidence, HumanLayerEvent
-from .models import ExportAudit
+from .models import Evidence, HumanLayerEvent, PolicyHistory
+from .models import ExportAudit, Experiment, SyntheticUser, GroundTruthLabel, DetectionMetric, ScorerArtifact
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.conf import settings
@@ -181,6 +181,91 @@ class ViolationActionLogAdmin(admin.ModelAdmin):
 
 @admin.register(HumanLayerEvent)
 class HumanLayerEventAdmin(admin.ModelAdmin):
-    list_display = ('event_type', 'summary', 'user', 'timestamp', 'source')
+    list_display = ('event_type', 'summary', 'user', 'timestamp', 'source', 'is_processed')
     readonly_fields = ('id', 'timestamp', 'user', 'event_type', 'source', 'summary', 'details', 'related_policy', 'related_control', 'related_violation')
     search_fields = ('summary', 'user__username', 'source')
+    
+    def is_processed(self, obj):
+        """Show processed status from EventMetadata."""
+        try:
+            return obj.metadata.processed
+        except:
+            return False
+    is_processed.boolean = True
+
+
+from .models import EventMetadata
+
+@admin.register(EventMetadata)
+class EventMetadataAdmin(admin.ModelAdmin):
+    list_display = ('event', 'processed', 'processed_at', 'has_signature', 'signature_timestamp')
+    readonly_fields = ('event', 'prev_hash', 'signature', 'signature_timestamp', 'tsa_token')
+    search_fields = ('event__summary', 'signature')
+    list_filter = ('processed',)
+    
+    def has_signature(self, obj):
+        return bool(obj.signature)
+    has_signature.boolean = True
+
+
+@admin.register(PolicyHistory)
+class PolicyHistoryAdmin(admin.ModelAdmin):
+    list_display = ('policy', 'version', 'created_at')
+    readonly_fields = ('policy', 'version', 'changelog', 'created_at')
+    search_fields = ('policy__name', 'version')
+    list_filter = ('created_at',)
+    
+    def has_add_permission(self, request):
+        # Policy history is managed by policy lifecycle
+        return False
+
+
+@admin.register(ExportAudit)
+class ExportAuditAdmin(admin.ModelAdmin):
+    list_display = ('user', 'object_type', 'object_count', 'created_at')
+    readonly_fields = ('user', 'created_at', 'object_type', 'object_count', 'details')
+    search_fields = ('user__username', 'object_type')
+    list_filter = ('object_type', 'created_at')
+    
+    def has_add_permission(self, request):
+        # Export audits are created automatically
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        # Audit trail should be immutable
+        return request.user.is_superuser
+
+
+@admin.register(Experiment)
+class ExperimentAdmin(admin.ModelAdmin):
+    list_display = ('name', 'created_at')
+    search_fields = ('name',)
+    readonly_fields = ('created_at',)
+
+
+@admin.register(SyntheticUser)
+class SyntheticUserAdmin(admin.ModelAdmin):
+    list_display = ('username', 'experiment')
+    search_fields = ('username', 'experiment__name')
+    list_filter = ('experiment',)
+
+
+@admin.register(GroundTruthLabel)
+class GroundTruthLabelAdmin(admin.ModelAdmin):
+    list_display = ('event', 'experiment', 'is_violation')
+    list_filter = ('experiment', 'is_violation')
+    search_fields = ('event__summary',)
+
+
+@admin.register(DetectionMetric)
+class DetectionMetricAdmin(admin.ModelAdmin):
+    list_display = ('experiment', 'name', 'value', 'created_at')
+    list_filter = ('experiment', 'name')
+    readonly_fields = ('created_at',)
+
+
+@admin.register(ScorerArtifact)
+class ScorerArtifactAdmin(admin.ModelAdmin):
+    list_display = ('name', 'version', 'sha256', 'created_at')
+    search_fields = ('name', 'version', 'sha256')
+    readonly_fields = ('created_at',)

@@ -21,6 +21,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from authentication.views import RoleLoginView
 from authentication import debug_views
+from policy import health, metrics
 
 
 def index(request):
@@ -49,4 +50,11 @@ urlpatterns = [
     path("debug/session-test/", debug_views.session_test, name="debug_session_test"),
     # Policy governance views
     path("policy/", include("policy.urls", namespace="policy")),
+    # Health check endpoints (for production monitoring)
+    path("health/live", health.liveness, name="health_live"),
+    path("health/ready", health.readiness, name="health_ready"),
+    path("health/startup", health.startup, name="health_startup"),
+    path("health/dependencies", health.dependencies, name="health_dependencies"),
+    # Metrics endpoint (for Prometheus)
+    path("metrics/", metrics.get_metrics_view(), name="prometheus_metrics"),
 ]

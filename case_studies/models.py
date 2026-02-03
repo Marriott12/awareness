@@ -6,5 +6,8 @@ class CaseStudy(models.Model):
     summary = models.TextField()
     published = models.BooleanField(default=True)
 
+    class Meta:
+        verbose_name_plural = "Case studies"
+
     def __str__(self):
         return self.title

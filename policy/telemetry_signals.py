@@ -26,20 +26,36 @@ def _safe_dict(obj):
 
 
 def _sign_event(ev):
+    """Sign event and store signature in EventMetadata table."""
     try:
-        key = getattr(settings, 'EVIDENCE_SIGNING_KEY', None)
-        if not key:
-            return
-        # include previous signature for chaining (last event for same user)
+        from .crypto_utils import sign_data, get_tsa_timestamp
+        from .models import EventMetadata
+        
+        # Get previous event for chaining
         prev = None
         if ev.user_id is not None:
-            prev = HumanLayerEvent.objects.filter(user=ev.user).exclude(pk=ev.pk).order_by('-timestamp').first()
-        prev_hash = prev.signature if prev is not None else None
+            prev_meta = EventMetadata.objects.filter(
+                event__user=ev.user
+            ).exclude(event_id=ev.pk).order_by('-event__timestamp').first()
+            prev = prev_meta.event if prev_meta else None
+        
+        prev_hash = prev_meta.signature if (prev and hasattr(prev, 'metadata')) else None
         payload = f"{ev.id}|{ev.timestamp.isoformat()}|{ev.user_id}|{ev.event_type}|{prev_hash}|{ev.details}"
-        sig = hmac.new(key.encode('utf-8'), payload.encode('utf-8'), hashlib.sha256).hexdigest()
-        HumanLayerEvent.objects.filter(pk=ev.pk).update(prev_hash=prev_hash, signature=sig)
-        ev.prev_hash = prev_hash
-        ev.signature = sig
+        
+        # Sign with private key
+        sig = sign_data(payload)
+        
+        # Get TSA timestamp if configured
+        tsa_token = get_tsa_timestamp(sig) if hasattr(settings, 'TSA_URL') else None
+        
+        # Create metadata record (mutable table, separate from immutable event)
+        EventMetadata.objects.create(
+            event=ev,
+            prev_hash=prev_hash,
+            signature=sig,
+            signature_timestamp=timezone.now(),
+            tsa_token=tsa_token
+        )
     except Exception:
         logger.exception('Failed to sign HumanLayerEvent %s', getattr(ev, 'pk', None))
 

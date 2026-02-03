@@ -1,0 +1,204 @@
+# Kubernetes ConfigMap for Awareness System
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: awareness-config
+  namespace: awareness
+data:
+  # Django settings
+  DJANGO_SETTINGS_MODULE: "awareness.settings"
+  DEBUG: "false"
+  ALLOWED_HOSTS: "awareness.example.com,awareness-web.awareness.svc.cluster.local"
+  
+  # Database (PostgreSQL)
+  DB_ENGINE: "django.db.backends.postgresql"
+  DB_NAME: "awareness"
+  DB_HOST: "postgres.awareness.svc.cluster.local"
+  DB_PORT: "5432"
+  
+  # Redis Cache
+  REDIS_URL: "redis://redis.awareness.svc.cluster.local:6379/0"
+  CACHE_BACKEND: "django.core.cache.backends.redis.RedisCache"
+  CACHE_LOCATION: "redis://redis.awareness.svc.cluster.local:6379/1"
+  
+  # Celery
+  CELERY_BROKER_URL: "redis://redis.awareness.svc.cluster.local:6379/2"
+  CELERY_RESULT_BACKEND: "redis://redis.awareness.svc.cluster.local:6379/3"
+  CELERY_TASK_ALWAYS_EAGER: "false"
+  
+  # ML Configuration
+  ML_ENABLED: "true"
+  ML_MODEL_VERSION: "latest"
+  ML_MODEL_DIR: "/app/ml_models"
+  
+  # Rate Limiting
+  GLOBAL_RATE_LIMIT: "1000"
+  GLOBAL_RATE_LIMIT_WINDOW: "60"
+  
+  # Cryptography
+  CRYPTO_KEY_DIR: "/app/keys"
+  SIGNATURE_ALGORITHM: "rsa"
+  
+  # TSA (Timestamp Authority)
+  TSA_URL: "https://freetsa.org/tsr"
+  TSA_TIMEOUT: "30"
+  
+  # Logging
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"  # JSON for structured logging
+  
+  # Security
+  SECURE_SSL_REDIRECT: "true"
+  SESSION_COOKIE_SECURE: "true"
+  CSRF_COOKIE_SECURE: "true"
+  SECURE_HSTS_SECONDS: "31536000"
+  SECURE_HSTS_INCLUDE_SUBDOMAINS: "true"
+  
+  # Email (for notifications)
+  EMAIL_BACKEND: "django.core.mail.backends.smtp.EmailBackend"
+  EMAIL_HOST: "smtp.example.com"
+  EMAIL_PORT: "587"
+  EMAIL_USE_TLS: "true"
+  DEFAULT_FROM_EMAIL: "awareness@example.com"
+
+---
+# Kubernetes Secrets (base64 encoded values)
+# Generate real secrets with: echo -n "value" | base64
+apiVersion: v1
+kind: Secret
+metadata:
+  name: awareness-secrets
+  namespace: awareness
+type: Opaque
+data:
+  # Django secret key (generate with: python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())')
+  SECRET_KEY: "Y2hhbmdlLW1lLXRvLWEtcmVhbC1zZWNyZXQta2V5LWluLXByb2R1Y3Rpb24="
+  
+  # Database credentials
+  DB_USER: "YXdhcmVuZXNzX3VzZXI="
+  DB_PASSWORD: "Y2hhbmdlLW1lLWluLXByb2R1Y3Rpb24="
+  
+  # Email credentials
+  EMAIL_HOST_USER: "YXdhcmVuZXNzQGV4YW1wbGUuY29t"
+  EMAIL_HOST_PASSWORD: "ZW1haWwtcGFzc3dvcmQtaGVyZQ=="
+
+---
+# Crypto Keys Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: awareness-crypto-keys
+  namespace: awareness
+type: Opaque
+data:
+  # RSA private key (generate with: python manage.py generate_keypair --key-type rsa)
+  # Base64 encode the PEM file: cat private_key.pem | base64 -w 0
+  rsa_private.pem: "LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpDSEFOR0UtTUUtVE8tUkVBTC1LRVktSU4tUFJPRFVDVElPTgotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQ=="
+  
+  rsa_public.pem: "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KQ0hBTkdFLU1FLVRPLVJFQUwtS0VZLUlOLVBST0RVQ1RJT04KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0t"
+
+---
+# Ingress for external access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: awareness-ingress
+  namespace: awareness
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"  # requests per minute
+    nginx.ingress.kubernetes.io/limit-rps: "20"    # requests per second
+spec:
+  tls:
+  - hosts:
+    - awareness.example.com
+    secretName: awareness-tls
+  rules:
+  - host: awareness.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: awareness-web
+            port:
+              number: 80
+      - path: /metrics
+        pathType: Exact
+        backend:
+          service:
+            name: awareness-web
+            port:
+              number: 80
+
+---
+# NetworkPolicy for security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: awareness-network-policy
+  namespace: awareness
+spec:
+  podSelector:
+    matchLabels:
+      app: awareness
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+  
+  # Allow Prometheus scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8000
+  
+  egress:
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Allow PostgreSQL
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow Redis
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  
+  # Allow external HTTPS (for TSA)
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443

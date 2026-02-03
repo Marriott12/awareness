@@ -4,7 +4,7 @@ Emits precision, recall, FPR, and latency metrics.
 """
 from django.core.management.base import BaseCommand
 from policy.models import Experiment, GroundTruthLabel, DetectionMetric, ScorerArtifact, HumanLayerEvent
-from policy.risk import RiskScorer
+from policy.risk import RuleBasedScorer
 from django.utils import timezone
 import time
 import hashlib
@@ -39,7 +39,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f'No ground truth labels found for experiment {exp_id}'))
             raise SystemExit(2)
 
-        scorer = RiskScorer()
+        scorer = RuleBasedScorer()
         
         # Capture scorer config and hash
         scorer_config = {

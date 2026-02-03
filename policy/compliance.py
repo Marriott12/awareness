@@ -9,7 +9,7 @@ import logging
 from django.utils import timezone
 from .models import Policy, Control, Rule, Violation, HumanLayerEvent
 from .services import RuleEngine
-from .risk import RiskScorer
+from .risk import RuleBasedScorer
 from typing import Tuple, List
 from django.db import transaction, IntegrityError
 import hashlib
@@ -50,7 +50,7 @@ class ComplianceEngine:
         # Attach policy version for traceability
         res['policy_version'] = getattr(policy, 'version', None)
         # compute risk score and include in evidence
-        scorer = RiskScorer()
+        scorer = RuleBasedScorer()
         risk = scorer.score(event)
         res['risk'] = risk
         for control in policy.controls.filter(active=True).order_by('order', 'id'):
@@ -82,7 +82,14 @@ class ComplianceEngine:
                                 'timestamp': timezone.now(), 'user': event.user, 'policy': policy, 'control': control, 'rule': None, 'severity': control.severity, 'evidence': evidence, 'dedup_key': dedup
                             })
                             if created:
-                                HumanLayerEvent.objects.filter(pk=event.pk).update(processed=True, related_violation=v)
+                                # Update metadata table, not immutable event
+                                from .models import EventMetadata
+                                EventMetadata.objects.update_or_create(
+                                    event=event,
+                                    defaults={'processed': True, 'processed_at': timezone.now()}
+                                )
+                                # Link violation to event via ForeignKey (still allowed on create)
+                                HumanLayerEvent.objects.filter(pk=event.pk, related_violation__isnull=True).update(related_violation=v)
                                 res['violations'].append(evidence)
                     except IntegrityError:
                         logger.warning('Duplicate violation suppressed for dedup %s', dedup)
@@ -111,7 +118,15 @@ class ComplianceEngine:
                                 'timestamp': timezone.now(), 'user': event.user, 'policy': policy, 'control': control, 'rule': rule, 'severity': control.severity, 'evidence': evidence, 'dedup_key': dedup
                             })
                             if created:
-                                HumanLayerEvent.objects.filter(pk=event.pk).update(processed=True, related_violation=v)
+                                # Update metadata table, not immutable event
+                                from .models import EventMetadata
+                                EventMetadata.objects.update_or_create(
+                                    event=event,
+                                    defaults={'processed': True, 'processed_at': timezone.now()}
+                                )
+                                # Link violation to event via ForeignKey (set on create, never update)
+                                if not event.related_violation:
+                                    HumanLayerEvent.objects.filter(pk=event.pk, related_violation__isnull=True).update(related_violation=v)
                                 res['violations'].append(evidence)
                     except IntegrityError:
                         logger.warning('Duplicate violation suppressed for dedup %s', dedup)
@@ -141,7 +156,14 @@ class ComplianceEngine:
                                 })
                                 if created:
                                     res['violations'].append(t_evidence)
-                                    HumanLayerEvent.objects.filter(pk=event.pk).update(processed=True, related_violation=v)
+                                    # Update metadata, not event
+                                    from .models import EventMetadata
+                                    EventMetadata.objects.update_or_create(
+                                        event=event,
+                                        defaults={'processed': True, 'processed_at': timezone.now()}
+                                    )
+                                    if not event.related_violation:
+                                        HumanLayerEvent.objects.filter(pk=event.pk, related_violation__isnull=True).update(related_violation=v)
                         except IntegrityError:
                             logger.warning('Duplicate threshold violation suppressed for dedup %s', dedup)
             except Exception:
@@ -150,7 +172,10 @@ class ComplianceEngine:
 
     def evaluate_unprocessed(self, policy: Policy, limit=100):
         # Evaluate up to `limit` unprocessed events against the policy
-        events = HumanLayerEvent.objects.filter(processed=False).order_by('timestamp')[:limit]
+        from .models import EventMetadata
+        # Get events without metadata or with processed=False
+        events_with_metadata = EventMetadata.objects.filter(processed=True).values_list('event_id', flat=True)
+        events = HumanLayerEvent.objects.exclude(id__in=events_with_metadata).order_by('timestamp')[:limit]
         out = []
         for ev in events:
             try:

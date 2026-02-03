@@ -7,17 +7,28 @@ hvac==2.4.0
 jsonschema==4.23.0
 psycopg2-binary==2.9.10
 whitenoise==6.11.0
+cryptography==46.0.4
+requests==2.32.3
+
+# ML/AI dependencies
+scikit-learn==1.4.0
+numpy==1.26.4
+pandas==2.2.0
+joblib==1.3.2
+
+# State machine
+django-fsm==3.0.0
+
+# Caching and async processing
+redis==5.0.1
+django-redis==5.4.0
+celery==5.3.6
+
+# Monitoring and observability
+prometheus-client==0.20.0
 
 # dev/test tools
 black==25.9.0
-flake8==7.3.0Django>=4.2,<6
-requests
-beautifulsoup4
-markdown
-gunicorn
-
-# Production helpers
-dj-database-url
-whitenoise
-psycopg2-binary
-flake8
+flake8==7.3.0
+pytest==8.0.0
+pytest-django==4.7.0

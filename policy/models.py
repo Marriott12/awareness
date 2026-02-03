@@ -23,6 +23,7 @@ class Policy(models.Model):
     sla_hours = models.PositiveIntegerField(null=True, blank=True, help_text='SLA response time in hours')
 
     class Meta:
+        verbose_name_plural = "Policies"
         constraints = [
             models.UniqueConstraint(
                 fields=['name', 'lifecycle'],
@@ -42,6 +43,7 @@ class PolicyHistory(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name_plural = "Policy history"
         ordering = ('-created_at',)
         permissions = (('export_evidence', 'Can export evidence'),)
 
@@ -69,6 +71,7 @@ class Control(models.Model):
     expression = models.JSONField(null=True, blank=True, help_text='Optional composite boolean expression over rule names or ids')
 
     class Meta:
+        verbose_name_plural = "Controls"
         ordering = ('policy', 'order', 'id')
 
     def __str__(self):
@@ -178,6 +181,8 @@ class Evidence(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
+        verbose_name = "Evidence"
+        verbose_name_plural = "Evidence"
         ordering = ('-created_at',)
 
     def save(self, *args, **kwargs):
@@ -229,42 +234,15 @@ class HumanLayerEvent(models.Model):
     related_policy = models.ForeignKey(Policy, null=True, blank=True, on_delete=models.SET_NULL, related_name='events')
     related_control = models.ForeignKey(Control, null=True, blank=True, on_delete=models.SET_NULL, related_name='events')
     related_violation = models.ForeignKey(Violation, null=True, blank=True, on_delete=models.SET_NULL, related_name='events')
-    processed = models.BooleanField(default=False, db_index=True)
-    # Cryptographic chaining & provenance
-    prev_hash = models.CharField(max_length=128, null=True, blank=True)
-    signature = models.CharField(max_length=256, null=True, blank=True, db_index=True)
 
     class Meta:
+        verbose_name_plural = "Human layer events"
         ordering = ('-timestamp',)
 
     def save(self, *args, **kwargs):
-        # HumanLayerEvent should be append-only; allow initial create.
-        adding = getattr(self, '_state', None) and getattr(self._state, 'adding', True)
-        if adding:
-            return super().save(*args, **kwargs)
-
-        # On updates, only allow setting `processed` and/or `related_violation` while leaving other fields unchanged.
-        try:
-            existing = HumanLayerEvent.objects.get(pk=self.pk)
-        except Exception:
-            raise ValueError('Cannot update HumanLayerEvent: original record not found')
-
-        immutable_fields = ['timestamp', 'user_id', 'event_type', 'source', 'summary', 'details', 'related_policy_id', 'related_control_id']
-        for f in immutable_fields:
-            # compare using attribute or _id fields
-            existing_val = getattr(existing, f) if hasattr(existing, f) else getattr(existing, f.replace('_id', ''), None)
-            new_val = getattr(self, f) if hasattr(self, f) else getattr(self, f.replace('_id', ''), None)
-            if existing_val != new_val:
-                raise ValueError('HumanLayerEvent objects are append-only and cannot be updated')
-
-        # allow updating processed from False->True
-        if existing.processed and self.processed != existing.processed:
-            raise ValueError('HumanLayerEvent objects are append-only and cannot be updated')
-
-        # allow setting related_violation only if it was previously None
-        if existing.related_violation is not None and self.related_violation != existing.related_violation:
-            raise ValueError('HumanLayerEvent objects are append-only and cannot be updated')
-
+        # HumanLayerEvent is truly append-only - no updates allowed
+        if self.pk and HumanLayerEvent.objects.filter(pk=self.pk).exists():
+            raise ValueError('HumanLayerEvent objects are immutable and cannot be updated')
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
@@ -272,6 +250,31 @@ class HumanLayerEvent(models.Model):
 
     def __str__(self):
         return f"{self.get_event_type_display()} by {self.user} @ {self.timestamp.isoformat()}"
+
+
+class EventMetadata(models.Model):
+    """Mutable metadata for HumanLayerEvent.
+    
+    Separates mutable operational fields (signatures, processing status)
+    from immutable event core data, resolving append-only contradiction.
+    """
+    event = models.OneToOneField(HumanLayerEvent, on_delete=models.CASCADE, related_name='metadata', primary_key=True)
+    processed = models.BooleanField(default=False, db_index=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    # Cryptographic chaining & provenance
+    prev_hash = models.CharField(max_length=128, null=True, blank=True)
+    signature = models.CharField(max_length=256, null=True, blank=True, db_index=True)
+    signature_timestamp = models.DateTimeField(null=True, blank=True)
+    # TSA timestamp token (RFC 3161)
+    tsa_token = models.BinaryField(null=True, blank=True)
+    
+    class Meta:
+        verbose_name = "Event metadata"
+        verbose_name_plural = "Event metadata"
+        db_table = 'policy_eventmetadata'
+        
+    def __str__(self):
+        return f"Metadata for {self.event_id}"
 
 
 class Experiment(models.Model):
@@ -299,6 +302,7 @@ class GroundTruthLabel(models.Model):
     is_violation = models.BooleanField()
 
     class Meta:
+        verbose_name_plural = "Ground truth labels"
         ordering = ('-event__timestamp',)
 
 
@@ -359,6 +363,7 @@ class ViolationActionLog(models.Model):
     details = models.JSONField(blank=True, null=True, help_text='Optional metadata for this action')
     
     class Meta:
+        verbose_name_plural = "Violation action logs"
         ordering = ('-timestamp',)
     
     def __str__(self):

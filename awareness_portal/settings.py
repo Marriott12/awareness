@@ -162,14 +162,22 @@ STATICFILES_STORAGE = os.environ.get(
 LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/dashboard/"
 
-# During development, use the console email backend for password reset flows
+# Email configuration
 EMAIL_BACKEND = os.environ.get(
     "AWARENESS_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
 )
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('1', 'true', 'yes')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 
 # Default from email
 DEFAULT_FROM_EMAIL = os.environ.get(
-    "AWARENESS_DEFAULT_FROM_EMAIL", "webmaster@localhost"
+    "AWARENESS_DEFAULT_FROM_EMAIL", "awareness-portal@company.com"
+)
+SECURITY_TEAM_EMAIL = os.environ.get(
+    "SECURITY_TEAM_EMAIL", "security-ops@company.com"
 )
 
 # Default primary key field type
@@ -248,3 +256,50 @@ LOGGING = {
 
 # Allow simple access to the logger in other modules
 logger = logging.getLogger(__name__)
+
+# Cache configuration (use Redis for production, fallback to in-memory for dev)
+REDIS_URL = os.environ.get('REDIS_URL', '')
+if REDIS_URL and not DEBUG:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': REDIS_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'CONNECTION_POOL_KWARGS': {'max_connections': 50},
+                'SOCKET_CONNECT_TIMEOUT': 5,
+                'SOCKET_TIMEOUT': 5,
+            },
+            'KEY_PREFIX': 'awareness',
+            'TIMEOUT': 300,  # 5 minutes default
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'awareness-cache',
+        }
+    }
+
+# ML Configuration (Production-ready, enabled by default)
+ML_ENABLED = os.environ.get('ML_ENABLED', 'True').lower() in ('1', 'true', 'yes')
+ML_MODEL_VERSION = os.environ.get('ML_MODEL_VERSION', '1.0')
+ML_MODEL_DIR = Path(os.environ.get('ML_MODEL_DIR', str(BASE_DIR / 'ml_models')))
+
+# Rate Limiting Configuration
+GLOBAL_RATE_LIMIT = int(os.environ.get('GLOBAL_RATE_LIMIT', '1000'))
+GLOBAL_RATE_LIMIT_WINDOW = int(os.environ.get('GLOBAL_RATE_LIMIT_WINDOW', '60'))
+
+# Celery Configuration (for async processing)
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+
+# GDPR Configuration
+GDPR_RETENTION_DAYS = int(os.environ.get('GDPR_RETENTION_DAYS', str(365 * 7)))  # 7 years default

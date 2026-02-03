@@ -1,8 +1,17 @@
-"""Explainable risk scoring for HumanLayerEvent telemetry.
+"""Deterministic rule-based risk scoring for human-layer events.
 
-Features:
-- Feature extraction from recent events for the same user
-- Simple explainable scoring combining rule-violation counts and statistical anomalies
+WARNING: This is NOT machine learning. This is a simple weighted sum calculator
+using manually-chosen weights. For actual ML-based scoring, this would need:
+- Training data collection
+- Model training pipeline (scikit-learn, PyTorch, etc.)
+- Cross-validation and hyperparameter tuning
+- Model serialization and versioning
+
+Current Implementation:
+- Feature extraction from recent events
+- Fixed weights (not learned from data)
+- Deterministic output for same inputs
+- Explainable scoring factors
 """
 from typing import Dict, Any
 from django.utils import timezone
@@ -11,15 +20,17 @@ from .models import ScorerArtifact
 import math
 
 
-class RiskScorer:
-    """Simple explainable scorer producing 0-100 score and contributing factors.
+class RuleBasedScorer:
+    """Deterministic weighted-sum risk scorer (NOT ML).
 
-    Explanation: score = weighted sum of normalized features:
+    Computes score = weighted sum of normalized features:
     - recent_violation_count (past 24h)
     - distinct_ip_count (past 24h)
     - unusual_hour (binary)
+    - source_novelty (binary)
     - recent_failed_logins (past 1h)
-    - novelty (source not seen before)
+    
+    Weights are manually tuned, not learned from data.
     """
 
     def __init__(self, now=None):
