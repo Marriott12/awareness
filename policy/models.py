@@ -249,7 +249,8 @@ class HumanLayerEvent(models.Model):
         raise ValueError('HumanLayerEvent objects are immutable and cannot be deleted')
 
     def __str__(self):
-        return f"{self.get_event_type_display()} by {self.user} @ {self.timestamp.isoformat()}"
+        event_type_label = dict(self.EVENT_TYPES).get(self.event_type, self.event_type)
+        return f"{event_type_label} by {self.user} @ {self.timestamp.isoformat()}"
 
 
 class EventMetadata(models.Model):
@@ -274,7 +275,7 @@ class EventMetadata(models.Model):
         db_table = 'policy_eventmetadata'
         
     def __str__(self):
-        return f"Metadata for {self.event_id}"
+        return f"Metadata for {self.event.pk}"
 
 
 class Experiment(models.Model):
@@ -367,7 +368,8 @@ class ViolationActionLog(models.Model):
         ordering = ('-timestamp',)
     
     def __str__(self):
-        return f"{self.get_action_display()} on {self.violation} by {self.actor} @ {self.timestamp.isoformat()}"
+        action_label = dict(self.ACTION_CHOICES).get(self.action, self.action)
+        return f"{action_label} on {self.violation} by {self.actor} @ {self.timestamp.isoformat()}"
 
 
 class KeyRotationLog(models.Model):
@@ -461,7 +463,8 @@ class ImmutabilityBypassLog(models.Model):
     
     def __str__(self):
         status = 'SUCCESS' if self.success else 'BLOCKED'
-        return f"{status}: {self.get_operation_display()} on {self.model_name} {self.record_id}"
+        operation_label = dict(self.OPERATION_CHOICES).get(self.operation, self.operation)
+        return f"{status}: {operation_label} on {self.model_name} {self.record_id}"
 
 
 class PolicyAttestation(models.Model):

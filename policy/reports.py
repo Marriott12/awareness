@@ -4,7 +4,7 @@ Provides PDF and Excel export for compliance reports, violation summaries,
 training progress, and analytics.
 """
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, cast
 from datetime import datetime, timedelta
 from io import BytesIO
 from django.http import HttpResponse
@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
+HTML = None
+CSS = None
+FontConfiguration = None
+
 try:
     from weasyprint import HTML, CSS
     from weasyprint.text.fonts import FontConfiguration
@@ -24,6 +28,10 @@ try:
 except ImportError:
     WEASYPRINT_AVAILABLE = False
     logger.warning('WeasyPrint not installed - PDF export disabled')
+
+openpyxl = None
+Font = Alignment = PatternFill = Border = Side = None
+BarChart = PieChart = Reference = None
 
 try:
     import openpyxl
@@ -33,6 +41,18 @@ try:
 except ImportError:
     OPENPYXL_AVAILABLE = False
     logger.warning('openpyxl not installed - Excel export disabled')
+
+
+def _font(*args, **kwargs):
+    if Font is None:
+        raise ImportError('openpyxl required for Excel styling')
+    return cast(Any, Font)(*args, **kwargs)
+
+
+def _pattern_fill(*args, **kwargs):
+    if PatternFill is None:
+        raise ImportError('openpyxl required for Excel styling')
+    return cast(Any, PatternFill)(*args, **kwargs)
 
 
 class ComplianceReportGenerator:
@@ -79,16 +99,15 @@ class ComplianceReportGenerator:
     
     def get_training_data(self) -> Dict[str, Any]:
         """Get training completion statistics."""
-        from training.models import TrainingModule, UserProgress
+        from training.models import TrainingModule, TrainingProgress
         
-        modules = TrainingModule.objects.filter(is_published=True)
+        modules = TrainingModule.objects.all()
         total_users = User.objects.filter(is_active=True).count()
         
         module_stats = []
         for module in modules:
-            completed = UserProgress.objects.filter(
+            completed = TrainingProgress.objects.filter(
                 module=module,
-                completed=True,
                 completed_at__gte=self.start_date,
                 completed_at__lte=self.end_date
             ).count()
@@ -128,7 +147,7 @@ class ComplianceReportGenerator:
     
     def generate_pdf_report(self) -> bytes:
         """Generate PDF compliance report."""
-        if not WEASYPRINT_AVAILABLE:
+        if not WEASYPRINT_AVAILABLE or HTML is None or FontConfiguration is None:
             raise ImportError('WeasyPrint required for PDF generation')
         
         # Gather data
@@ -145,20 +164,27 @@ class ComplianceReportGenerator:
         html_string = render_to_string('reports/compliance_report.html', data)
         
         # Generate PDF
-        font_config = FontConfiguration()
-        html = HTML(string=html_string)
+        font_configuration_cls = cast(Any, FontConfiguration)
+        html_cls = cast(Any, HTML)
+        font_config = font_configuration_cls()
+        html = html_cls(string=html_string)
         pdf_bytes = html.write_pdf(font_config=font_config)
+        if pdf_bytes is None:
+            raise RuntimeError('PDF generation returned no content')
         
         return pdf_bytes
     
     def generate_excel_report(self) -> bytes:
         """Generate Excel compliance report."""
-        if not OPENPYXL_AVAILABLE:
+        if not OPENPYXL_AVAILABLE or openpyxl is None:
             raise ImportError('openpyxl required for Excel generation')
         
         # Create workbook
-        wb = openpyxl.Workbook()
-        wb.remove(wb.active)  # Remove default sheet
+        workbook_module = cast(Any, openpyxl)
+        wb = workbook_module.Workbook()
+        active_sheet = wb.active
+        if active_sheet is not None:
+            wb.remove(active_sheet)
         
         # Gather data
         violations = self.get_violation_data()
@@ -190,12 +216,12 @@ class ComplianceReportGenerator:
         
         # Header
         ws['A1'] = 'Compliance Report Summary'
-        ws['A1'].font = Font(size=16, bold=True)
+        ws['A1'].font = _font(size=16, bold=True)
         ws['A2'] = f'Period: {self.start_date.strftime("%Y-%m-%d")} to {self.end_date.strftime("%Y-%m-%d")}'
         
         # Violations summary
         ws['A4'] = 'Violations'
-        ws['A4'].font = Font(bold=True)
+        ws['A4'].font = _font(bold=True)
         ws['A5'] = 'Total Violations:'
         ws['B5'] = violations['total']
         ws['A6'] = 'Critical:'
@@ -209,7 +235,7 @@ class ComplianceReportGenerator:
         
         # Training summary
         ws['A11'] = 'Training'
-        ws['A11'].font = Font(bold=True)
+        ws['A11'].font = _font(bold=True)
         ws['A12'] = 'Total Modules:'
         ws['B12'] = training['total_modules']
         ws['A13'] = 'Overall Completion:'
@@ -217,7 +243,7 @@ class ComplianceReportGenerator:
         
         # Quiz summary
         ws['A15'] = 'Quizzes'
-        ws['A15'].font = Font(bold=True)
+        ws['A15'].font = _font(bold=True)
         ws['A16'] = 'Total Attempts:'
         ws['B16'] = quizzes['total_attempts']
         ws['A17'] = 'Pass Rate:'
@@ -237,9 +263,9 @@ class ComplianceReportGenerator:
         headers = ['Date', 'User', 'Rule', 'Severity', 'Status']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col, value=header)
-            cell.font = Font(bold=True)
-            cell.fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
-            cell.font = Font(color='FFFFFF', bold=True)
+            cell.font = _font(bold=True)
+            cell.fill = _pattern_fill(start_color='366092', end_color='366092', fill_type='solid')
+            cell.font = _font(color='FFFFFF', bold=True)
         
         # Data
         for row, violation in enumerate(violations['recent_violations'], 2):
@@ -261,9 +287,9 @@ class ComplianceReportGenerator:
         headers = ['Module', 'Completed', 'Total Users', 'Completion Rate']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col, value=header)
-            cell.font = Font(bold=True)
-            cell.fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
-            cell.font = Font(color='FFFFFF', bold=True)
+            cell.font = _font(bold=True)
+            cell.fill = _pattern_fill(start_color='366092', end_color='366092', fill_type='solid')
+            cell.font = _font(color='FFFFFF', bold=True)
         
         # Data
         for row, module in enumerate(training['module_stats'], 2):
@@ -283,7 +309,7 @@ class ComplianceReportGenerator:
         
         # Summary data
         ws['A1'] = 'Quiz Performance Summary'
-        ws['A1'].font = Font(size=14, bold=True)
+        ws['A1'].font = _font(size=14, bold=True)
         
         ws['A3'] = 'Total Attempts:'
         ws['B3'] = quizzes['total_attempts']

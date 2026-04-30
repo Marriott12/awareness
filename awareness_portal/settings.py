@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 import logging
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -124,7 +125,7 @@ try:
 
     DATABASE_URL = os.environ.get("DATABASE_URL")
     if DATABASE_URL:
-        DATABASES["default"] = dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+        DATABASES["default"] = dict(dj_database_url.parse(DATABASE_URL, conn_max_age=600))
 except Exception:
     # dj-database-url is optional; keep sqlite default if not available
     pass
@@ -162,8 +163,11 @@ SAML_IDP_METADATA_URL = os.environ.get('SAML_IDP_METADATA_URL', '')
 
 # LDAP/Active Directory Configuration
 try:
-    import ldap
-    from django_auth_ldap.config import LDAPSearch, GroupOfNamesType
+    import importlib
+
+    ldap = importlib.import_module('ldap')
+    ldap_config = importlib.import_module('django_auth_ldap.config')
+    LDAPSearch = ldap_config.LDAPSearch
     
     AUTH_LDAP_SERVER_URI = os.environ.get('LDAP_SERVER_URI', 'ldap://localhost')
     AUTH_LDAP_BIND_DN = os.environ.get('LDAP_BIND_DN', '')
@@ -265,10 +269,11 @@ else:
     CSRF_COOKIE_SECURE = False
 
 # CSRF trusted origins (comma separated)
-if os.environ.get("AWARENESS_CSRF_TRUSTED_ORIGINS"):
+_csrf_trusted_origins = os.environ.get("AWARENESS_CSRF_TRUSTED_ORIGINS")
+if _csrf_trusted_origins:
     CSRF_TRUSTED_ORIGINS = [
         x.strip()
-        for x in os.environ.get("AWARENESS_CSRF_TRUSTED_ORIGINS").split(",")
+        for x in _csrf_trusted_origins.split(",")
         if x.strip()
     ]
 
@@ -570,7 +575,7 @@ SESSION_SAVE_EVERY_REQUEST = False
 # Testing Configuration
 # =============================================================================
 
-if 'test' in os.sys.argv:
+if 'test' in sys.argv:
     # Speed up tests
     PASSWORD_HASHERS = [
         'django.contrib.auth.hashers.MD5PasswordHasher',

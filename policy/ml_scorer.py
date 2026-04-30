@@ -10,7 +10,7 @@ This module implements a REAL machine learning pipeline using scikit-learn:
 
 Unlike the RuleBasedScorer, this uses actual ML algorithms trained on labeled data.
 """
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple, Optional, cast
 from django.utils import timezone
 from django.core.cache import cache
 from django.conf import settings
@@ -25,6 +25,17 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Import ML libraries
+RandomForestClassifier = None
+GradientBoostingClassifier = None
+cross_val_score = None
+GridSearchCV = None
+StandardScaler = None
+Pipeline = None
+precision_score = None
+recall_score = None
+f1_score = None
+roc_auc_score = None
+
 try:
     from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
     from sklearn.model_selection import cross_val_score, GridSearchCV
@@ -176,14 +187,20 @@ class MLRiskScorer:
         y = np.array([label for _, label in training_data])
         
         logger.info(f'Training {algorithm} on {len(y)} samples ({sum(y)} positive)')
+
+        if not SKLEARN_AVAILABLE or StandardScaler is None:
+            raise ImportError('scikit-learn required for training')
         
         # Feature scaling
-        self.scaler = StandardScaler()
+        scaler_cls = cast(Any, StandardScaler)
+        self.scaler = scaler_cls()
         X_scaled = self.scaler.fit_transform(X)
         
         # Select base model
         if algorithm == 'random_forest':
-            base_model = RandomForestClassifier(random_state=42)
+            if RandomForestClassifier is None:
+                raise ImportError('scikit-learn required for random forest training')
+            base_model = cast(Any, RandomForestClassifier)(random_state=42)
             param_grid = {
                 'n_estimators': [50, 100, 200],
                 'max_depth': [10, 20, None],
@@ -191,7 +208,9 @@ class MLRiskScorer:
                 'min_samples_leaf': [1, 2]
             } if tune_hyperparameters else {}
         elif algorithm == 'gradient_boosting':
-            base_model = GradientBoostingClassifier(random_state=42)
+            if GradientBoostingClassifier is None:
+                raise ImportError('scikit-learn required for gradient boosting training')
+            base_model = cast(Any, GradientBoostingClassifier)(random_state=42)
             param_grid = {
                 'n_estimators': [50, 100],
                 'learning_rate': [0.01, 0.1],
@@ -202,8 +221,10 @@ class MLRiskScorer:
         
         # Hyperparameter tuning
         if tune_hyperparameters and param_grid:
+            if GridSearchCV is None:
+                raise ImportError('scikit-learn required for hyperparameter tuning')
             logger.info('Performing hyperparameter tuning...')
-            grid_search = GridSearchCV(
+            grid_search = cast(Any, GridSearchCV)(
                 base_model, param_grid, cv=cv_folds, scoring='f1', n_jobs=-1
             )
             grid_search.fit(X_scaled, y)
@@ -216,7 +237,9 @@ class MLRiskScorer:
             best_params = {}
         
         # Cross-validation metrics
-        cv_scores = cross_val_score(self.model, X_scaled, y, cv=cv_folds, scoring='f1')
+        if any(metric is None for metric in (cross_val_score, precision_score, recall_score, f1_score, roc_auc_score)):
+            raise ImportError('scikit-learn metrics required for training')
+        cv_scores = cast(Any, cross_val_score)(self.model, X_scaled, y, cv=cv_folds, scoring='f1')
         
         # Final predictions for metrics
         y_pred = self.model.predict(X_scaled)
@@ -228,10 +251,10 @@ class MLRiskScorer:
             'n_samples': len(y),
             'n_positive': int(sum(y)),
             'n_negative': int(len(y) - sum(y)),
-            'precision': float(precision_score(y, y_pred, zero_division=0)),
-            'recall': float(recall_score(y, y_pred, zero_division=0)),
-            'f1_score': float(f1_score(y, y_pred, zero_division=0)),
-            'roc_auc': float(roc_auc_score(y, y_proba)),
+            'precision': float(cast(Any, precision_score)(y, y_pred, zero_division=0)),
+            'recall': float(cast(Any, recall_score)(y, y_pred, zero_division=0)),
+            'f1_score': float(cast(Any, f1_score)(y, y_pred, zero_division=0)),
+            'roc_auc': float(cast(Any, roc_auc_score)(y, y_proba)),
             'cv_f1_mean': float(cv_scores.mean()),
             'cv_f1_std': float(cv_scores.std()),
             'best_params': best_params,
@@ -240,8 +263,10 @@ class MLRiskScorer:
         }
         
         # Feature importance (for tree-based models)
-        if hasattr(self.model, 'feature_importances_'):
-            importance = dict(zip(self.feature_names, self.model.feature_importances_))
+        feature_names = self.feature_names or []
+        if hasattr(self.model, 'feature_importances_') and feature_names:
+            importance_values = [float(value) for value in getattr(self.model, 'feature_importances_', [])]
+            importance = dict(zip(feature_names, importance_values))
             metrics['feature_importance'] = {
                 k: float(v) for k, v in sorted(importance.items(), key=lambda x: -x[1])[:10]
             }
@@ -263,12 +288,15 @@ class MLRiskScorer:
         """
         if self.model is None:
             raise RuntimeError('Model not loaded. Call train() or load_model() first.')
+        if self.scaler is None:
+            raise RuntimeError('Scaler not loaded. Call train() or load_model() first.')
         
         # Extract and scale features
         features = self.extract_features(event).reshape(1, -1)
         features_scaled = self.scaler.transform(features)
         
         # Predict
+        proba = None
         if return_proba:
             proba = self.model.predict_proba(features_scaled)[0, 1]
             score = int(proba * 100)  # Convert to 0-100 scale
@@ -279,14 +307,16 @@ class MLRiskScorer:
         # Feature contributions (approximation for tree-based models)
         explanation = {'score': score, 'probability': proba if return_proba else None}
         
-        if hasattr(self.model, 'feature_importances_'):
-            feature_vals = dict(zip(self.feature_names, features[0]))
-            importance = dict(zip(self.feature_names, self.model.feature_importances_))
+        feature_names = self.feature_names or []
+        if hasattr(self.model, 'feature_importances_') and feature_names:
+            feature_vals = dict(zip(feature_names, [float(value) for value in features[0]]))
+            importance_values = [float(value) for value in getattr(self.model, 'feature_importances_', [])]
+            importance = dict(zip(feature_names, importance_values))
             
             # Top contributing features
             contributions = {
                 k: {'value': float(feature_vals[k]), 'importance': float(importance[k])}
-                for k in sorted(importance, key=importance.get, reverse=True)[:5]
+                for k in sorted(importance, key=lambda key: importance[key], reverse=True)[:5]
             }
             explanation['top_features'] = contributions
         
@@ -419,7 +449,7 @@ class MLRiskScorer:
         )
         
         if not created:
-            artifact.config = self.metadata
+            setattr(artifact, 'config', self.metadata)
             artifact.sha256 = model_hash
             artifact.save()
 
