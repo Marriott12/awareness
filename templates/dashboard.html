@@ -73,7 +73,7 @@
                 </span>
                 <div class="attempt-bar-track">
                   <div class="attempt-bar-fill {% if a.score >= 80 %}sc-high{% elif a.score >= 60 %}sc-mid{% else %}sc-low{% endif %}"
-                       style="width:{{ a.score|floatformat:0 }}%"></div>
+                       data-score="{{ a.score|floatformat:0 }}"></div>
                 </div>
               </div>
             </li>
@@ -205,5 +205,11 @@
         }
       });
     }
+
+    document.querySelectorAll('.attempt-bar-fill[data-score]').forEach(function (bar) {
+      var score = parseInt(bar.getAttribute('data-score') || '0', 10);
+      var safeScore = Math.max(0, Math.min(100, score));
+      bar.style.width = safeScore + '%';
+    });
   </script>
 {% endblock %}
