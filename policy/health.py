@@ -104,9 +104,11 @@ def readiness(request):
         try:
             from policy.ml_scorer import get_ml_scorer
             scorer = get_ml_scorer()
+            scorer_meta = scorer.metadata if isinstance(getattr(scorer, 'metadata', None), dict) else {}
+            scorer_version = getattr(scorer, 'model_version', None) or scorer_meta.get('version', 'unknown')
             
             if scorer.model is not None:
-                checks['ml_model'] = {'status': 'ok', 'version': scorer.version}
+                checks['ml_model'] = {'status': 'ok', 'version': scorer_version}
             else:
                 checks['ml_model'] = {'status': 'warning', 'message': 'No model loaded'}
         except Exception as e:
@@ -173,9 +175,9 @@ def dependencies(request):
         latency_ms = (time.time() - start) * 1000
         
         # Get Redis info if available
-        cache_backend = cache._cache
+        cache_backend = getattr(cache, '_cache', None)
         redis_info = {}
-        if hasattr(cache_backend, 'info'):
+        if cache_backend is not None and hasattr(cache_backend, 'info'):
             info = cache_backend.info()
             redis_info = {
                 'version': info.get('redis_version'),
@@ -239,12 +241,13 @@ def dependencies(request):
             from policy.models import ScorerArtifact
             
             scorer = get_ml_scorer()
+            scorer_meta = scorer.metadata if isinstance(getattr(scorer, 'metadata', None), dict) else {}
+            scorer_version = getattr(scorer, 'model_version', None) or scorer_meta.get('version', 'unknown')
+            scorer_algorithm = scorer_meta.get('algorithm', 'unknown')
             
             if scorer.model:
                 # Get model artifact info
-                artifact = ScorerArtifact.objects.filter(
-                    version=scorer.version
-                ).first()
+                artifact = ScorerArtifact.objects.filter(version=scorer_version).first()
                 
                 model_age_days = None
                 if artifact:
@@ -252,10 +255,10 @@ def dependencies(request):
                 
                 deps['ml_model'] = {
                     'status': 'operational',
-                    'version': scorer.version,
-                    'algorithm': scorer.algorithm,
+                    'version': scorer_version,
+                    'algorithm': scorer_algorithm,
                     'age_days': model_age_days,
-                    'cached': scorer._model_cache_key in cache,
+                    'cached': scorer.model is not None,
                 }
                 
                 # Warn if model is too old
