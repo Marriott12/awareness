@@ -30,8 +30,8 @@ def policy_detail(request, pk):
     ml_enabled = getattr(settings, 'ML_ENABLED', False)
     if ml_enabled:
         try:
-            from .ml_scorer import MLPolicyScorer
-            scorer = MLPolicyScorer()
+            from .ml_scorer import MLRiskScorer
+            scorer = MLRiskScorer()
             if scorer.is_ready():
                 # Calculate risk based on user's violation history
                 user_features = {
@@ -56,24 +56,27 @@ def policy_detail(request, pk):
 @login_required
 def my_violations(request):
     """Show all violations for the current user."""
-    violations = Violation.objects.filter(user=request.user).select_related(
+    violations_qs = Violation.objects.filter(user=request.user).select_related(
         'policy', 'control', 'rule'
-    ).order_by('-timestamp')[:100]
+    ).order_by('-timestamp')
     
-    # Group by status
-    unresolved = violations.filter(resolved=False)
-    resolved = violations.filter(resolved=True)
+    # Group by status (limit each group separately)
+    unresolved = violations_qs.filter(resolved=False)[:50]
+    resolved = violations_qs.filter(resolved=True)[:50]
+    
+    # All violations for display (limited to 100 most recent)
+    violations = violations_qs[:100]
     
     # Get ML recommendations if enabled
     ml_recommendations = []
     ml_enabled = getattr(settings, 'ML_ENABLED', False)
-    if ml_enabled and violations.exists():
+    if ml_enabled and violations_qs.exists():
         try:
-            from .ml_scorer import MLPolicyScorer
-            scorer = MLPolicyScorer()
+            from .ml_scorer import MLRiskScorer
+            scorer = MLRiskScorer()
             if scorer.is_ready():
                 # Get top controls that user violates
-                top_controls = violations.values('control__name').annotate(
+                top_controls = violations_qs.values('control__name').annotate(
                     count=Count('id')
                 ).order_by('-count')[:3]
                 
@@ -104,8 +107,8 @@ def ml_evaluation(request):
         })
     
     try:
-        from .ml_scorer import MLPolicyScorer
-        scorer = MLPolicyScorer()
+        from .ml_scorer import MLRiskScorer
+        scorer = MLRiskScorer()
         
         if not scorer.is_ready():
             return render(request, 'policy/ml_evaluation.html', {

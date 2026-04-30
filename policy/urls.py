@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views_gov as gov
 from . import views_user as user_views
+from . import search_views
 
 app_name = 'policy'
 
@@ -15,4 +16,9 @@ urlpatterns = [
     path('policy/<int:pk>/', user_views.policy_detail, name='policy_detail'),
     path('my-violations/', user_views.my_violations, name='my_violations'),
     path('ml-evaluation/', user_views.ml_evaluation, name='ml_evaluation'),
+    
+    # Search endpoints
+    path('search/', search_views.global_search, name='global_search'),
+    path('search/suggestions/', search_views.search_suggestions, name='search_suggestions'),
+    path('search/policies/', search_views.search_policies, name='search_policies'),
 ]

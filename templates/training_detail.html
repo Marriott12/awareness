@@ -1,12 +1,38 @@
 {% extends 'base.html' %}
+
+{% block title %}{{ module.title }} - Awareness Portal{% endblock %}
+
 {% block content %}
-  <h2>{{ module.title }}</h2>
-  <div class="module-content">
-    {{ module.content|linebreaks }}
+<div class="dashboard-header">
+  <div>
+    <h1>{{ module.title }}</h1>
+    <p class="subtitle">Security Awareness Training Module</p>
   </div>
-  <form method="post">
-    {% csrf_token %}
-    <button type="submit">Mark as complete</button>
-  </form>
-  <p><a href="{% url 'training_list' %}">Back to modules</a></p>
+  <div class="action-buttons">
+    <a href="{% url 'training_list' %}" class="action-btn secondary">
+      <span class="btn-icon">←</span>
+      <span class="btn-text">Back to Modules</span>
+    </a>
+  </div>
+</div>
+
+<div class="dashboard-grid" style="grid-template-columns: 1fr;">
+  <div class="dashboard-card">
+    <div class="module-content">
+      {{ module.content|linebreaks }}
+    </div>
+  </div>
+
+  <div class="dashboard-card">
+    <h3>📝 Complete This Module</h3>
+    <p style="margin-bottom: 20px; color: var(--text-secondary);">Mark this module as complete to track your progress.</p>
+    <form method="post">
+      {% csrf_token %}
+      <button type="submit" class="action-btn primary" style="width: 100%;">
+        <span class="btn-icon">✓</span>
+        <span class="btn-text">Mark as Complete</span>
+      </button>
+    </form>
+  </div>
+</div>
 {% endblock %}

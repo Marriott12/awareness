@@ -1,43 +1,128 @@
 {% extends 'base.html' %}
 {% block content %}
-  <h2>Dashboard</h2>
-  <p>Welcome, {{ user.username }}.</p>
-  <div>
-    <h3>Your recent quiz attempts</h3>
-    {% if attempts %}
-      <ul>
-        {% for a in attempts %}
-          <li>{{ a.quiz.title }} — {{ a.score }}% ({{ a.taken_at }})</li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p>No quiz attempts yet.</p>
-    {% endif %}
+  <div class="dashboard-header">
+    <h1>Welcome back, {{ user.username }}</h1>
+    <p class="subtitle">Your security awareness dashboard</p>
   </div>
 
-  <div>
-    <h3>Quiz performance (recent)</h3>
-    <canvas id="scoresChart" width="600" height="200"></canvas>
+  <!-- Quick Stats Cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">📊</div>
+      <div class="stat-content">
+        <h3>{{ attempts|length }}</h3>
+        <p>Quiz Attempts</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div class="stat-content">
+        <h3>{{ progress|length }}</h3>
+        <p>Modules Completed</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🎯</div>
+      <div class="stat-content">
+        <h3>{% if attempts %}{{ attempts.0.score|floatformat:1 }}%{% else %}--{% endif %}</h3>
+        <p>Latest Quiz Score</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🔒</div>
+      <div class="stat-content">
+        <h3>Active</h3>
+        <p>Security Status</p>
+      </div>
+    </div>
   </div>
 
-  <div>
-    <h3>Completed training modules</h3>
-    {% if progress %}
-      <ul>
-        {% for p in progress %}
-          <li>{{ p.module.title }} — completed {{ p.completed_at }}</li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p>No completed modules yet.</p>
-    {% endif %}
+  <!-- Main Content Grid -->
+  <div class="dashboard-grid">
+    <!-- Chart Section -->
+    <div class="dashboard-card chart-card">
+      <h3>Quiz Performance Trend</h3>
+      {% if attempts %}
+        <div class="chart-wrapper">
+          <canvas id="scoresChart"></canvas>
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <p>📈 No quiz data yet. Take your first quiz to see your performance trend!</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Recent Attempts -->
+    <div class="dashboard-card">
+      <h3>Recent Quiz Attempts</h3>
+      {% if attempts %}
+        <ul class="activity-list">
+          {% for a in attempts %}
+            <li class="activity-item">
+              <div class="activity-icon">
+                {% if a.score >= 80 %}🏆{% elif a.score >= 60 %}⭐{% else %}📝{% endif %}
+              </div>
+              <div class="activity-content">
+                <strong>{{ a.quiz.title }}</strong>
+                <span class="score-badge score-{{ a.score|floatformat:0|cut:'.0' }}">{{ a.score|floatformat:1 }}%</span>
+                <small>{{ a.taken_at|date:"M d, Y g:i A" }}</small>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="empty-state">
+          <p>No quiz attempts yet. <a href="{% url 'quizzes:list' %}">Take your first quiz!</a></p>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Training Progress -->
+    <div class="dashboard-card">
+      <h3>Completed Training</h3>
+      {% if progress %}
+        <ul class="activity-list">
+          {% for p in progress %}
+            <li class="activity-item">
+              <div class="activity-icon">✓</div>
+              <div class="activity-content">
+                <strong>{{ p.module.title }}</strong>
+                <small>{{ p.completed_at|date:"M d, Y" }}</small>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="empty-state">
+          <p>No completed modules yet. <a href="{% url 'training_list' %}">Start training!</a></p>
+        </div>
+      {% endif %}
+    </div>
   </div>
 
-  <ul>
-    <li><a href="/training/">Training Modules</a></li>
-    <li><a href="/quizzes/">Take a Quiz</a></li>
-    <li><a href="/case-studies/">Read Case Studies</a></li>
-  </ul>
+  <!-- Quick Actions -->
+  <div class="dashboard-actions">
+    <h3>Quick Actions</h3>
+    <div class="action-buttons">
+      <a href="{% url 'training_list' %}" class="action-btn primary">
+        <span class="btn-icon">📚</span>
+        <span class="btn-text">Training Modules</span>
+      </a>
+      <a href="{% url 'quizzes:list' %}" class="action-btn primary">
+        <span class="btn-icon">📝</span>
+        <span class="btn-text">Take a Quiz</span>
+      </a>
+      <a href="{% url 'case_studies_list' %}" class="action-btn secondary">
+        <span class="btn-icon">📖</span>
+        <span class="btn-text">Case Studies</span>
+      </a>
+      <a href="{% url 'policy:policies_list' %}" class="action-btn secondary">
+        <span class="btn-icon">🛡️</span>
+        <span class="btn-text">View Policies</span>
+      </a>
+    </div>
+  </div>
 {% endblock %}
 
 {% block scripts %}
@@ -45,21 +130,67 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     const attemptsData = JSON.parse(document.getElementById('attempts-data').textContent || '[]');
-    const dataLabels = attemptsData.map(a => a.taken_at);
-    const dataScores = attemptsData.map(a => a.score);
-    const ctx = document.getElementById('scoresChart').getContext('2d');
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: dataLabels,
-        datasets: [{
-          label: 'Score %',
-          data: dataScores,
-          fill: false,
-          borderColor: 'rgb(75, 192, 192)'
-        }]
-      },
-      options: { responsive: true }
-    });
+    if (attemptsData.length > 0) {
+      const dataLabels = attemptsData.map(a => {
+        const date = new Date(a.taken_at);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      });
+      const dataScores = attemptsData.map(a => a.score);
+      const ctx = document.getElementById('scoresChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: dataLabels,
+          datasets: [{
+            label: 'Quiz Score (%)',
+            data: dataScores,
+            fill: true,
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            borderColor: 'rgb(75, 192, 192)',
+            borderWidth: 3,
+            tension: 0.4,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBackgroundColor: 'rgb(75, 192, 192)',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              padding: 12,
+              titleFont: { size: 14, weight: 'bold' },
+              bodyFont: { size: 13 }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              ticks: {
+                callback: function(value) {
+                  return value + '%';
+                }
+              },
+              grid: {
+                color: 'rgba(0, 0, 0, 0.05)'
+              }
+            },
+            x: {
+              grid: {
+                display: false
+              }
+            }
+          }
+        }
+      });
+    }
   </script>
 {% endblock %}

@@ -59,8 +59,9 @@ class MLRiskScorer:
         if not SKLEARN_AVAILABLE:
             raise ImportError('scikit-learn required for MLRiskScorer')
         
-        self.model_path = model_path or self._get_default_model_path()
+        # Set model_version BEFORE calling _get_default_model_path()
         self.model_version = model_version
+        self.model_path = model_path or self._get_default_model_path()
         self.model = None
         self.scaler = None
         self.feature_names = None
@@ -349,6 +350,60 @@ class MLRiskScorer:
         self.metadata = bundle.get('metadata', {})
         
         logger.info(f'Model loaded from {load_path}: {self.metadata.get("algorithm", "unknown")}')
+    
+    def is_ready(self) -> bool:
+        """Check if model is loaded and ready for predictions.
+        
+        Returns:
+            True if model is loaded, False otherwise
+        """
+        return self.model is not None and self.scaler is not None
+    
+    def predict_risk(self, user_features: Dict[str, Any]) -> Dict[str, Any]:
+        """Predict risk score from user feature dictionary.
+        
+        This is a simplified interface for getting risk scores from
+        aggregate user statistics rather than individual events.
+        
+        Args:
+            user_features: Dictionary with keys like 'total_violations',
+                          'high_severity_violations', etc.
+        
+        Returns:
+            Dict with 'score' (0-100) and 'risk_level' (Low/Medium/High)
+        """
+        # Simple heuristic-based scoring when called with aggregate features
+        # In production, you'd want a separate model trained on user-level features
+        
+        total = user_features.get('total_violations', 0)
+        critical = user_features.get('critical_violations', 0)
+        high = user_features.get('high_severity_violations', 0)
+        unresolved = user_features.get('unresolved_violations', 0)
+        
+        # Weight different violation types
+        score = min(100, (
+            total * 5 +
+            critical * 20 +
+            high * 10 +
+            unresolved * 15
+        ))
+        
+        # Determine risk level
+        if score >= 70:
+            risk_level = 'High'
+        elif score >= 40:
+            risk_level = 'Medium'
+        else:
+            risk_level = 'Low'
+        
+        return {
+            'score': score,
+            'risk_level': risk_level,
+            'total_violations': total,
+            'critical_violations': critical,
+            'high_severity_violations': high,
+            'unresolved_violations': unresolved,
+        }
     
     def _register_model(self, path: str, model_hash: str):
         """Register trained model in database."""

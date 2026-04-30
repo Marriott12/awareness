@@ -20,7 +20,6 @@ from django.urls import path, include
 from django.shortcuts import redirect
 from django.urls import reverse
 from authentication.views import RoleLoginView
-from authentication import debug_views
 from policy import health, metrics
 
 
@@ -45,9 +44,8 @@ urlpatterns = [
         name="login",
     ),
     path("accounts/", include("django.contrib.auth.urls")),
-    # Debug endpoint for authentication/session/cookie issues
-    path("debug/auth-status/", debug_views.debug_auth_status, name="debug_auth_status"),
-    path("debug/session-test/", debug_views.session_test, name="debug_session_test"),
+    # SAML SSO authentication
+    path("saml/", include("authentication.saml_urls", namespace="saml")),
     # Policy governance views
     path("policy/", include("policy.urls", namespace="policy")),
     # Health check endpoints (for production monitoring)
@@ -57,4 +55,6 @@ urlpatterns = [
     path("health/dependencies", health.dependencies, name="health_dependencies"),
     # Metrics endpoint (for Prometheus)
     path("metrics/", metrics.get_metrics_view(), name="prometheus_metrics"),
+    # REST API endpoints
+    path("api/v1/", include("api.urls", namespace="api")),
 ]

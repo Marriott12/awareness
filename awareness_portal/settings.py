@@ -51,24 +51,41 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # Third-party apps
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "django_filters",
+    "drf_yasg",
+    "corsheaders",
+    "django_otp",
+    "django_otp.plugins.otp_totp",
+    "modeltranslation",
+    # Local apps
     "authentication",
     "dashboard",
     "policy",
     "training",
     "quizzes",
     "case_studies",
+    "api",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     # WhiteNoise should be just after SecurityMiddleware to serve static files efficiently
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    # CORS middleware (must be before CommonMiddleware)
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # OTP middleware for 2FA
+    "django_otp.middleware.OTPMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # CSP middleware for security headers
+    "csp.middleware.CSPMiddleware",
 ]
 
 ROOT_URLCONF = "awareness_portal.urls"
@@ -130,6 +147,45 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
+
+# Authentication backends (SAML, LDAP, standard Django)
+AUTHENTICATION_BACKENDS = [
+    'authentication.saml_backend.SAMLAuthenticationBackend',
+    'authentication.saml_backend.LDAPAuthenticationBackend',
+    'django.contrib.auth.backends.ModelBackend',  # Default Django auth
+]
+
+# SAML 2.0 SSO Configuration
+SAML_ENABLED = os.environ.get('SAML_ENABLED', 'False').lower() == 'true'
+SAML_FOLDER = os.path.join(BASE_DIR, 'saml')  # Folder for SAML settings.json and certs
+SAML_IDP_METADATA_URL = os.environ.get('SAML_IDP_METADATA_URL', '')
+
+# LDAP/Active Directory Configuration
+try:
+    import ldap
+    from django_auth_ldap.config import LDAPSearch, GroupOfNamesType
+    
+    AUTH_LDAP_SERVER_URI = os.environ.get('LDAP_SERVER_URI', 'ldap://localhost')
+    AUTH_LDAP_BIND_DN = os.environ.get('LDAP_BIND_DN', '')
+    AUTH_LDAP_BIND_PASSWORD = os.environ.get('LDAP_BIND_PASSWORD', '')
+    AUTH_LDAP_USER_SEARCH = LDAPSearch(
+        os.environ.get('LDAP_USER_DN', 'ou=users,dc=example,dc=com'),
+        ldap.SCOPE_SUBTREE,
+        '(uid=%(user)s)'
+    )
+    
+    # Map LDAP attributes to Django user model
+    AUTH_LDAP_USER_ATTR_MAP = {
+        'first_name': 'givenName',
+        'last_name': 'sn',
+        'email': 'mail',
+    }
+    
+    # Auto-create users from LDAP
+    AUTH_LDAP_ALWAYS_UPDATE_USER = True
+except ImportError:
+    # LDAP support is optional
+    pass
 
 
 # Internationalization
@@ -303,3 +359,228 @@ CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 
 # GDPR Configuration
 GDPR_RETENTION_DAYS = int(os.environ.get('GDPR_RETENTION_DAYS', str(365 * 7)))  # 7 years default
+
+# =============================================================================
+# REST Framework Configuration
+# =============================================================================
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour',
+    },
+    'EXCEPTION_HANDLER': 'rest_framework.views.exception_handler',
+}
+
+# JWT Configuration
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+}
+
+# Swagger/OpenAPI Configuration
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+        }
+    },
+    'USE_SESSION_AUTH': True,
+    'JSON_EDITOR': True,
+    'SUPPORTED_SUBMIT_METHODS': ['get', 'post', 'put', 'patch', 'delete'],
+}
+
+# =============================================================================
+# CORS Configuration
+# =============================================================================
+
+# Allow CORS from specific origins (configure for production)
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
+    if origin.strip()
+]
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# =============================================================================
+# Security Headers & CSP
+# =============================================================================
+
+# Content Security Policy
+CSP_DEFAULT_SRC = ("'self'",)
+CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net")
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com")
+CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com")
+CSP_IMG_SRC = ("'self'", "data:", "https:")
+CSP_CONNECT_SRC = ("'self'",)
+
+# Additional Security Headers
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+
+# =============================================================================
+# Sentry Error Tracking (Production)
+# =============================================================================
+
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
+if SENTRY_DSN and not DEBUG:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(),
+            CeleryIntegration(),
+        ],
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+        environment=os.environ.get('SENTRY_ENVIRONMENT', 'production'),
+    )
+
+# =============================================================================
+# Internationalization & Localization
+# =============================================================================
+
+LANGUAGES = [
+    ('en', 'English'),
+    ('fr', 'French'),
+    ('ar', 'Arabic'),
+]
+
+LOCALE_PATHS = [
+    BASE_DIR / 'locale',
+]
+
+# Modeltranslation settings
+MODELTRANSLATION_DEFAULT_LANGUAGE = 'en'
+MODELTRANSLATION_LANGUAGES = ('en', 'fr', 'ar')
+MODELTRANSLATION_FALLBACK_LANGUAGES = ('en',)
+
+# =============================================================================
+# Notification Settings
+# =============================================================================
+
+# Slack Integration
+SLACK_WEBHOOK_URL = os.environ.get('SLACK_WEBHOOK_URL', '')
+SLACK_CHANNEL = os.environ.get('SLACK_CHANNEL', '#security-alerts')
+
+# Microsoft Teams Integration
+TEAMS_WEBHOOK_URL = os.environ.get('TEAMS_WEBHOOK_URL', '')
+
+# =============================================================================
+# Search Configuration (Elasticsearch - Optional)
+# =============================================================================
+
+# Only configure Elasticsearch if packages are installed
+try:
+    import elasticsearch
+    import elasticsearch_dsl
+    ELASTICSEARCH_DSL = {
+        'default': {
+            'hosts': os.environ.get('ELASTICSEARCH_URL', 'localhost:9200'),
+            'http_auth': (
+                os.environ.get('ELASTICSEARCH_USER', ''),
+                os.environ.get('ELASTICSEARCH_PASSWORD', ''),
+            ) if os.environ.get('ELASTICSEARCH_USER') else None,
+        },
+    }
+except ImportError:
+    # Elasticsearch not installed - search features disabled
+    ELASTICSEARCH_DSL = None
+
+# =============================================================================
+# File Upload & Storage
+# =============================================================================
+
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+
+# AWS S3 Configuration (optional, for production file storage)
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', '')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
+AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME', '')
+AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'us-east-1')
+
+# =============================================================================
+# Performance & Optimization
+# =============================================================================
+
+# Database Connection Pooling
+CONN_MAX_AGE = 600  # 10 minutes
+
+# Session Configuration
+SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
+SESSION_CACHE_ALIAS = 'default'
+SESSION_COOKIE_AGE = 86400  # 1 day
+SESSION_SAVE_EVERY_REQUEST = False
+
+# =============================================================================
+# Testing Configuration
+# =============================================================================
+
+if 'test' in os.sys.argv:
+    # Speed up tests
+    PASSWORD_HASHERS = [
+        'django.contrib.auth.hashers.MD5PasswordHasher',
+    ]
+    
+    # Use in-memory database for tests
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': ':memory:',
+        }
+    }
+

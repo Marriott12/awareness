@@ -1,16 +1,46 @@
 {% extends 'base.html' %}
+
+{% block title %}Training Modules - Awareness Portal{% endblock %}
+
 {% block content %}
-  <h2>Training Modules</h2>
-  <ul>
+<div class="dashboard-header">
+  <div>
+    <h1>🎓 Training Modules</h1>
+    <p class="subtitle">Build your security awareness skills with our comprehensive training</p>
+  </div>
+</div>
+
+{% if modules %}
+  <div class="training-grid">
     {% for m in modules %}
-      <li>
-        <a href="{% url 'module_detail' m.slug %}">{{ m.title }}</a>
-        {% if m.id in completed %}
-          <strong>(Completed)</strong>
-        {% endif %}
-      </li>
-    {% empty %}
-      <li>No modules available</li>
+      <a href="{% url 'module_detail' m.slug %}" class="training-card{% if m.id in completed %} completed{% endif %}">
+        <div class="training-header">
+          <div class="training-icon">
+            {% if m.id in completed %}✅{% else %}📖{% endif %}
+          </div>
+          {% if m.id in completed %}
+            <span class="completion-badge">Completed</span>
+          {% else %}
+            <span class="status-badge new">Available</span>
+          {% endif %}
+        </div>
+        <div class="training-content">
+          <h3>{{ m.title }}</h3>
+          {% if m.description %}
+            <p class="training-description">{{ m.description|truncatewords:20 }}</p>
+          {% endif %}
+        </div>
+        <div class="training-footer">
+          <span class="btn-link">Start Module →</span>
+        </div>
+      </a>
     {% endfor %}
-  </ul>
+  </div>
+{% else %}
+  <div class="empty-state">
+    <div class="empty-icon">📚</div>
+    <h3>No Training Modules Available</h3>
+    <p>New modules will appear here when they become available.</p>
+  </div>
+{% endif %}
 {% endblock %}

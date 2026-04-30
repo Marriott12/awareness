@@ -1,4 +1,5 @@
 version: '3.8'
+
 services:
   db:
     image: postgres:15
@@ -17,34 +18,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgres://awareness:awareness@db:5432/awareness
-      AWARENESS_SECRET_KEY: "please-change-me"
-      AWARENESS_DEBUG: "False"
-    depends_on:
-      - db
-
-volumes:
-  db_data:
-version: '3.8'
-services:
-  db:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: awareness
-      POSTGRES_USER: awareness
-      POSTGRES_PASSWORD: awareness
-    volumes:
-      - db_data:/var/lib/postgresql/data
-
-  web:
-    build: .
-    command: gunicorn awareness_portal.wsgi:application --bind 0.0.0.0:8000 --workers 3
-    ports:
-      - "8000:8000"
-    environment:
+      - DATABASE_URL=postgres://awareness:awareness@db:5432/awareness
       - POSTGRES_DB=awareness
       - POSTGRES_USER=awareness
       - POSTGRES_PASSWORD=awareness
+      - AWARENESS_SECRET_KEY=please-change-me-in-production
       - AWARENESS_ALLOWED_HOSTS=localhost,127.0.0.1
       - AWARENESS_DEBUG=False
       - AWARENESS_STATICFILES_STORAGE=whitenoise.storage.CompressedManifestStaticFilesStorage
@@ -52,10 +30,11 @@ services:
     depends_on:
       - db
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health/live/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 40s
 
 volumes:
   db_data:

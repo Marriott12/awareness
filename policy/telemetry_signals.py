@@ -64,12 +64,27 @@ def _sign_event(ev):
 def _on_user_logged_in(sender, request, user, **kwargs):
     try:
         from .models import HumanLayerEvent
+        from django.contrib.sessions.models import Session
+
+        # Check for concurrent logins (HLP-01)
+        active_sessions = Session.objects.filter(expire_date__gte=timezone.now()).count()
+        
+        # Count recent login events for this user
+        recent_logins = HumanLayerEvent.objects.filter(
+            user=user,
+            event_type='auth',
+            source='auth.login',
+            timestamp__gte=timezone.now() - timezone.timedelta(hours=1)
+        ).count()
 
         details = {
             'remote_addr': request.META.get('REMOTE_ADDR'),
             'user_agent': request.META.get('HTTP_USER_AGENT'),
             'session_key': getattr(request.session, 'session_key', None),
+            'active_sessions': active_sessions,
+            'recent_logins': recent_logins,
         }
+        
         ev = HumanLayerEvent.objects.create(
             user=user,
             event_type='auth',
@@ -78,6 +93,23 @@ def _on_user_logged_in(sender, request, user, **kwargs):
             details=details,
         )
         _sign_event(ev)
+        
+        # Create concurrent login event if multiple active sessions detected
+        if recent_logins > 0:  # This is at least the second login in past hour
+            concurrent_ev = HumanLayerEvent.objects.create(
+                user=user,
+                event_type='auth',
+                source='auth.concurrent',
+                summary='concurrent_login_detected',
+                details={
+                    'recent_logins': recent_logins + 1,
+                    'remote_addr': request.META.get('REMOTE_ADDR'),
+                    'user_agent': request.META.get('HTTP_USER_AGENT'),
+                },
+            )
+            _sign_event(concurrent_ev)
+            logger.warning(f'Concurrent login detected for user {user.username}: {recent_logins + 1} logins in past hour')
+            
     except Exception:
         logger.exception('Failed to record user_logged_in telemetry')
 
@@ -136,6 +168,112 @@ def _on_violation_saved(sender, instance, created, **kwargs):
         ev.save()
     except Exception:
         logger.exception('Failed to persist Evidence for Violation %s', instance)
+
+
+@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+def _on_user_privilege_change(sender, instance, created, update_fields, **kwargs):
+    """Detect privilege escalation for HLP-02 compliance.
+    
+    Tracks when users gain staff or superuser privileges, creating events
+    for security monitoring and audit trail.
+    """
+    if created:
+        # Track initial privilege grants for new users
+        if instance.is_staff or instance.is_superuser:
+            try:
+                from .models import HumanLayerEvent
+                
+                initial_privileges = []
+                if instance.is_staff:
+                    initial_privileges.append('staff')
+                if instance.is_superuser:
+                    initial_privileges.append('superuser')
+                
+                details = {
+                    'username': instance.username,
+                    'initial_privileges': initial_privileges,
+                    'is_staff': instance.is_staff,
+                    'is_superuser': instance.is_superuser,
+                }
+                
+                ev = HumanLayerEvent.objects.create(
+                    user=instance,
+                    event_type='admin',
+                    source='auth.initial_privilege_grant',
+                    summary='initial_privilege_granted',
+                    details=details,
+                )
+                _sign_event(ev)
+                logger.info(f'Initial privileges granted: {instance.username} created with {initial_privileges}')
+            except Exception:
+                logger.exception('Failed to record initial privilege grant')
+        return
+    
+    # For updates, check if privilege-related fields changed
+    if update_fields is not None:
+        if 'is_staff' not in update_fields and 'is_superuser' not in update_fields:
+            return  # No privilege changes, skip
+    
+    try:
+        from .models import HumanLayerEvent
+        from django.contrib.auth import get_user_model
+        
+        User = get_user_model()
+        
+        # Get the old values from database (before this save)
+        # This works because we're in post_save, but we need to refresh from db
+        try:
+            # Use raw SQL to get original values since ORM cache might be stale
+            from django.db import connection
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"SELECT is_staff, is_superuser FROM {User._meta.db_table} WHERE id = %s",
+                    [instance.pk]
+                )
+                row = cursor.fetchone()
+                if row:
+                    old_is_staff, old_is_superuser = row
+                else:
+                    return  # User not found, probably just created
+        except Exception:
+            # Fallback: just log current state without comparison
+            old_is_staff = False
+            old_is_superuser = False
+        
+        # Check for privilege escalation
+        privilege_escalated = False
+        escalation_type = []
+        
+        if not old_is_staff and instance.is_staff:
+            privilege_escalated = True
+            escalation_type.append('staff')
+        
+        if not old_is_superuser and instance.is_superuser:
+            privilege_escalated = True
+            escalation_type.append('superuser')
+        
+        if privilege_escalated:
+            details = {
+                'username': instance.username,
+                'escalation_type': escalation_type,
+                'was_staff': old_is_staff,
+                'now_staff': instance.is_staff,
+                'was_superuser': old_is_superuser,
+                'now_superuser': instance.is_superuser,
+            }
+            
+            ev = HumanLayerEvent.objects.create(
+                user=instance,
+                event_type='admin',
+                source='auth.privilege_escalation',
+                summary='privilege_escalated',
+                details=details,
+            )
+            _sign_event(ev)
+            logger.warning(f'Privilege escalation detected: {instance.username} gained {escalation_type}')
+            
+    except Exception:
+        logger.exception('Failed to record privilege escalation telemetry')
 
 
 def _connect_optional_model_signals():

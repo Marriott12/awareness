@@ -1,13 +1,214 @@
-<h1>Compliance Dashboard</h1>
-<h2>Violations by Policy</h2>
-<ul>
-{% for p in by_policy %}
-  <li>{{ p.policy__name }}: {{ p.total }}</li>
-{% endfor %}
-</ul>
-<h2>Recent Violations</h2>
-<ul>
-{% for v in recent %}
-  <li><a href="{% url 'policy:violation_detail' v.id %}">{{ v.policy.name }} / {{ v.control.name }} @ {{ v.timestamp }}</a></li>
-{% endfor %}
-</ul>
+{% extends 'base.html' %}
+{% block title %}Compliance Dashboard - Awareness Portal{% endblock %}
+{% block content %}
+  <div class="dashboard-header">
+    <h1>🛡️ Compliance Dashboard</h1>
+    <p class="subtitle">Policy violation monitoring and risk analysis</p>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">🚨</div>
+      <div class="stat-content">
+        <h3>{{ recent|length }}</h3>
+        <p>Recent Violations</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📋</div>
+      <div class="stat-content">
+        <h3>{{ by_policy|length }}</h3>
+        <p>Policies Affected</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">👥</div>
+      <div class="stat-content">
+        <h3>{{ by_user|length }}</h3>
+        <p>Users with Violations</p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📊</div>
+      <div class="stat-content">
+        <h3>{{ by_severity|length }}</h3>
+        <p>Severity Levels</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="dashboard-grid">
+    <!-- Violations Trend Chart -->
+    <div class="dashboard-card chart-card">
+      <h3>Violation Trend (Last 30 Days)</h3>
+      <div class="chart-wrapper">
+        <canvas id="violationsTrendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Violations by Policy -->
+    <div class="dashboard-card">
+      <h3>Top Violated Policies</h3>
+      {% if by_policy %}
+        <div class="compliance-list">
+          {% for p in by_policy|slice:":10" %}
+            <div class="compliance-item">
+              <div class="compliance-label">{{ p.policy__name|truncatewords:5 }}</div>
+              <div class="compliance-bar">
+                <div class="compliance-bar-fill" style="width: {% widthratio p.total by_policy.0.total 100 %}%"></div>
+              </div>
+              <div class="compliance-count">{{ p.total }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <p>No policy violations recorded</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Violations by Severity -->
+    <div class="dashboard-card">
+      <h3>Severity Distribution</h3>
+      {% if by_severity %}
+        <div class="severity-grid">
+          {% for s in by_severity %}
+            <div class="severity-item severity-{{ s.severity }}">
+              <div class="severity-icon">
+                {% if s.severity == 'critical' %}🔴
+                {% elif s.severity == 'high' %}🟠
+                {% elif s.severity == 'medium' %}🟡
+                {% else %}🟢{% endif %}
+              </div>
+              <div class="severity-content">
+                <strong>{{ s.total }}</strong>
+                <span>{{ s.severity|default:"unknown"|title }}</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <p>No severity data available</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Top Users with Violations -->
+    <div class="dashboard-card">
+      <h3>Users Requiring Attention</h3>
+      {% if by_user %}
+        <div class="user-violations-list">
+          {% for u in by_user %}
+            <div class="user-violation-item">
+              <div class="user-avatar">👤</div>
+              <div class="user-info">
+                <strong>{{ u.user__username }}</strong>
+                <span class="violation-badge">{{ u.total }} violation{{ u.total|pluralize }}</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <p>No user violations</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Recent Violations Table -->
+  <div class="dashboard-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h3 style="margin:0;">Recent Violations</h3>
+      <a href="{% url 'policy:violations_list' %}" class="action-btn secondary" style="padding:8px 16px; font-size:14px;">View All</a>
+    </div>
+    {% if recent %}
+      <div class="table-responsive">
+        <table class="compliance-table">
+          <thead>
+            <tr>
+              <th>Policy</th>
+              <th>Control</th>
+              <th>User</th>
+              <th>Severity</th>
+              <th>Time</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in recent|slice:":15" %}
+              <tr>
+                <td><strong>{{ v.policy.name|truncatewords:4 }}</strong></td>
+                <td>{{ v.control.name|truncatewords:4 }}</td>
+                <td>{{ v.user.username|default:"System" }}</td>
+                <td>
+                  <span class="severity-badge severity-{{ v.severity }}">
+                    {{ v.severity|default:"unknown"|title }}
+                  </span>
+                </td>
+                <td><small>{{ v.timestamp|date:"M d, Y g:i A" }}</small></td>
+                <td>
+                  <a href="{% url 'policy:violation_detail' v.id %}" class="btn-link">Details →</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>No recent violations</p>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script id="violations-trend-data" type="application/json">{{ violations_by_day|safe }}</script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const trendData = JSON.parse(document.getElementById('violations-trend-data').textContent || '[]');
+    if (trendData.length > 0) {
+      const ctx = document.getElementById('violationsTrendChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: trendData.map(d => {
+            const date = new Date(d.date);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          }),
+          datasets: [{
+            label: 'Violations',
+            data: trendData.map(d => d.count),
+            backgroundColor: 'rgba(239, 68, 68, 0.6)',
+            borderColor: 'rgb(239, 68, 68)',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              padding: 12
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { precision: 0 },
+              grid: { color: 'rgba(0, 0, 0, 0.05)' }
+            },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+  </script>
+{% endblock %}

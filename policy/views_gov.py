@@ -4,6 +4,7 @@ from .models import Policy, Violation, Evidence
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
+import json
 
 
 @staff_member_required
@@ -32,7 +33,7 @@ def compliance_dashboard(request):
         'by_policy': by_policy,
         'by_severity': by_severity,
         'by_user': by_user,
-        'violations_by_day': violations_by_day,
+        'violations_by_day': json.dumps(violations_by_day),
         'recent': recent,
     })
 

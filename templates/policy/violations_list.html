@@ -1,13 +1,71 @@
-<h1>Violations</h1>
-<table>
-  <tr><th>Policy</th><th>Control</th><th>Rule</th><th>User</th><th>Time</th></tr>
-  {% for v in violations %}
-  <tr>
-    <td>{{ v.policy.name }}</td>
-    <td>{{ v.control.name }}</td>
-    <td>{{ v.rule.name if v.rule }}</td>
-    <td>{{ v.user.username if v.user }}</td>
-    <td><a href="{% url 'policy:violation_detail' v.id %}">{{ v.timestamp }}</a></td>
-  </tr>
-  {% endfor %}
-</table>
+{% extends 'base.html' %}
+{% block title %}All Violations - Compliance{% endblock %}
+{% block content %}
+  <div class="dashboard-header">
+    <h1>📋 All Policy Violations</h1>
+    <p class="subtitle">Complete violation history and details</p>
+  </div>
+
+  <div class="dashboard-card">
+    {% if violations %}
+      <div class="table-responsive">
+        <table class="compliance-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Policy</th>
+              <th>Control</th>
+              <th>Rule</th>
+              <th>User</th>
+              <th>Severity</th>
+              <th>Timestamp</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in violations %}
+              <tr class="{% if not v.resolved %}unresolved{% endif %}">
+                <td><code>#{{ v.id }}</code></td>
+                <td><strong>{{ v.policy.name|truncatewords:4 }}</strong></td>
+                <td>{{ v.control.name|truncatewords:4 }}</td>
+                <td>{{ v.rule.name|default:"—"|truncatewords:3 }}</td>
+                <td>
+                  {% if v.user %}
+                    <span class="user-tag">{{ v.user.username }}</span>
+                  {% else %}
+                    <em>System</em>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="severity-badge severity-{{ v.severity }}">
+                    {{ v.severity|default:"unknown"|title }}
+                  </span>
+                </td>
+                <td><small>{{ v.timestamp|date:"M d, Y g:i A" }}</small></td>
+                <td>
+                  {% if v.resolved %}
+                    <span class="status-badge resolved">✓ Resolved</span>
+                  {% else %}
+                    <span class="status-badge unresolved">⚠ Open</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <a href="{% url 'policy:violation_detail' v.id %}" class="btn-link">View Details →</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>No violations found</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <div style="margin-top:20px; text-align:center;">
+    <a href="{% url 'policy:compliance_dashboard' %}" class="action-btn secondary">← Back to Dashboard</a>
+  </div>
+{% endblock %}

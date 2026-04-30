@@ -1,8 +1,80 @@
-<h1>Violation Detail</h1>
-<p>Policy: {{ violation.policy.name }}</p>
-<p>Control: {{ violation.control.name }}</p>
-<p>Rule: {{ violation.rule.name if violation.rule }}</p>
-<p>User: {{ violation.user.username if violation.user }}</p>
-<p>Timestamp: {{ violation.timestamp }}</p>
-<h2>Evidence</h2>
-<pre>{{ evidence|safe }}</pre>
+{% extends 'base.html' %}
+{% block title %}Violation #{{ violation.id }} - Details{% endblock %}
+{% block content %}
+  <div class="dashboard-header">
+    <h1>🔍 Violation Details</h1>
+    <p class="subtitle">Violation #{{ violation.id }}</p>
+  </div>
+
+  <!-- Violation Overview Card -->
+  <div class="dashboard-card" style="margin-bottom:24px;">
+    <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:24px;">
+      <div>
+        <h3 style="margin:0 0 8px 0;">{{ violation.policy.name }}</h3>
+        <p style="color:var(--text-secondary); margin:0;">{{ violation.control.name }}</p>
+      </div>
+      <span class="severity-badge severity-{{ violation.severity }}" style="font-size:16px; padding:8px 16px;">
+        {{ violation.severity|default:"unknown"|title }}
+      </span>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-item">
+        <div class="info-label">Rule</div>
+        <div class="info-value">{{ violation.rule.name|default:"No specific rule" }}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">User</div>
+        <div class="info-value">
+          {% if violation.user %}
+            <span class="user-tag">{{ violation.user.username }}</span>
+          {% else %}
+            <em>System-generated</em>
+          {% endif %}
+        </div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Timestamp</div>
+        <div class="info-value">{{ violation.timestamp|date:"F d, Y g:i:s A" }}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Status</div>
+        <div class="info-value">
+          {% if violation.resolved %}
+            <span class="status-badge resolved">✓ Resolved</span>
+            <small style="display:block; margin-top:4px; color:var(--text-secondary);">{{ violation.resolved_at|date:"M d, Y" }}</small>
+          {% else %}
+            <span class="status-badge unresolved">⚠ Open</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if violation.description %}
+      <div style="margin-top:20px; padding:16px; background:var(--bg); border-radius:8px;">
+        <strong style="display:block; margin-bottom:8px;">Description:</strong>
+        <p style="margin:0; color:var(--text-secondary);">{{ violation.description }}</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Evidence Card -->
+  <div class="dashboard-card">
+    <h3>📄 Evidence</h3>
+    {% if evidence %}
+      <div class="evidence-container">
+        <pre class="evidence-pre">{{ evidence|safe }}</pre>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>No evidence data available</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Actions -->
+  <div style="margin-top:24px; display:flex; gap:12px;">
+    <a href="{% url 'policy:violations_list' %}" class="action-btn secondary">← Back to Violations</a>
+    <a href="{% url 'policy:compliance_dashboard' %}" class="action-btn secondary">Dashboard</a>
+  </div>
+{% endblock %}

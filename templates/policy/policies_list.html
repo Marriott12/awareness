@@ -1,25 +1,60 @@
 {% extends 'base.html' %}
+
+{% block title %}Security Policies - Awareness Portal{% endblock %}
+
 {% block content %}
-<h1>Active Policies</h1>
-<p>View all active security policies and their controls.</p>
+<div class="dashboard-header">
+  <div>
+    <h1>🛡️ Security Policies</h1>
+    <p class="subtitle">View all active security policies and their controls</p>
+  </div>
+  <div class="action-buttons">
+    <a href="{% url 'policy:my_violations' %}" class="action-btn secondary">
+      <span class="btn-icon">⚠️</span>
+      <span class="btn-text">My Violations</span>
+    </a>
+    <a href="{% url 'policy:ml_evaluation' %}" class="action-btn primary">
+      <span class="btn-icon">🤖</span>
+      <span class="btn-text">Risk Assessment</span>
+    </a>
+  </div>
+</div>
 
 {% if policies %}
-  <div class="policies-list">
+  <div class="training-grid">
     {% for policy in policies %}
-      <div class="policy-card" style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
-        <h2><a href="{% url 'policy:policy_detail' policy.id %}">{{ policy.name }}</a></h2>
-        <p>{{ policy.description }}</p>
-        <p><strong>Version:</strong> {{ policy.version }} | <strong>Status:</strong> {{ policy.get_lifecycle_display }}</p>
-        <p><strong>Controls:</strong> {{ policy.controls.count }}</p>
-      </div>
+      <a href="{% url 'policy:policy_detail' policy.id %}" class="training-card" style="text-decoration:none;">
+        <div class="training-header">
+          <div class="training-icon">📜</div>
+          <span class="status-badge {% if policy.lifecycle == 'active' %}resolved{% elif policy.lifecycle == 'draft' %}new{% else %}unresolved{% endif %}">
+            {{ policy.get_lifecycle_display }}
+          </span>
+        </div>
+        <div class="training-content">
+          <h3>{{ policy.name }}</h3>
+          <p class="training-description">{{ policy.description|truncatewords:25 }}</p>
+        </div>
+        <div class="info-grid" style="padding:12px 0 0 0; margin:0; background:transparent; grid-template-columns:repeat(2, 1fr); gap:12px;">
+          <div class="info-item">
+            <div class="info-label">Version</div>
+            <div class="info-value">{{ policy.version }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Controls</div>
+            <div class="info-value">{{ policy.controls.count }}</div>
+          </div>
+        </div>
+        <div class="training-footer">
+          <span class="btn-link">View Details →</span>
+        </div>
+      </a>
     {% endfor %}
   </div>
 {% else %}
-  <p>No active policies found.</p>
+  <div class="empty-state">
+    <div class="empty-icon">📜</div>
+    <h3>No Active Policies</h3>
+    <p>No active policies are currently configured.</p>
+  </div>
 {% endif %}
-
-<div style="margin-top: 20px;">
-  <a href="{% url 'policy:my_violations' %}" class="btn">View My Violations</a>
-  <a href="{% url 'policy:ml_evaluation' %}" class="btn">ML Risk Assessment</a>
-</div>
 {% endblock %}

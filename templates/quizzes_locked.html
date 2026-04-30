@@ -2,5 +2,5 @@
 {% block content %}
   <h2>{{ quiz.title }} — Locked</h2>
   <p>This quiz has a per-user attempt limit of {{ limit }} and you've reached that limit.</p>
-  <p><a href="/quizzes/">Back to quizzes</a></p>
+  <p><a href="{% url 'quizzes:list' %}">Back to quizzes</a></p>
 {% endblock %}

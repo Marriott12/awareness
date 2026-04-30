@@ -1,22 +1,409 @@
 {% extends 'base.html' %}
-{% block content %}
-  <h2>Awareness Web Portal</h2>
-  <p>Site summary</p>
-  <div>
-    <h3>Recent quiz attempts</h3>
-    {% if attempts %}
-      <ul>
-        {% for a in attempts %}
-          <li>{{ a.user.username }} — {{ a.quiz.title }} — {{ a.score }}% ({{ a.taken_at }})</li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p>No attempts yet.</p>
-    {% endif %}
-  </div>
-  <div>
-    <p>Training modules with progress: {{ module_count }}</p>
-    <p>Total users: {{ user_count }}</p>
-  </div>
-  <p><a href="/admin/">Go to Awareness Web Portal Administration</a></p>
+{% block title %}Command Center — Awareness Web Portal{% endblock %}
+{% block extra_head %}
+<style>
+  /* ── Scoped military theme for admin dashboard ── */
+  .mil-wrap {
+    --mil-bg: #080d18;
+    --mil-surface: #0d1526;
+    --mil-surface2: #111d35;
+    --mil-border: rgba(0,200,160,0.18);
+    --mil-green: #00c8a0;
+    --mil-green-dim: rgba(0,200,160,0.12);
+    --mil-amber: #f59e0b;
+    --mil-red: #ef4444;
+    --mil-blue: #3b82f6;
+    --mil-text: #e2e8f0;
+    --mil-text-dim: #64748b;
+    --mil-text-muted: #334155;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: var(--mil-bg);
+    min-height: calc(100vh - 120px);
+    padding: 32px;
+    margin: -32px;
+  }
+
+  /* Header */
+  .mil-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--mil-border);
+  }
+  .mil-header-left { display:flex; flex-direction:column; gap:6px; }
+  .mil-header-tag {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--mil-green);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .mil-header-tag::before {
+    content: '';
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--mil-green);
+    box-shadow: 0 0 8px var(--mil-green);
+    animation: mil-pulse 2s ease-in-out infinite;
+  }
+  @keyframes mil-pulse {
+    0%,100% { opacity:1; box-shadow: 0 0 8px var(--mil-green); }
+    50%      { opacity:0.4; box-shadow: 0 0 3px var(--mil-green); }
+  }
+  .mil-title {
+    font-size: clamp(24px, 3vw, 36px);
+    font-weight: 800;
+    color: #fff;
+    margin: 0;
+    letter-spacing: -0.5px;
+  }
+  .mil-subtitle {
+    font-size: 14px;
+    color: var(--mil-text-dim);
+    margin: 0;
+    letter-spacing: 0.2px;
+  }
+  .mil-admin-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    border: 1px solid var(--mil-green);
+    color: var(--mil-green);
+    text-decoration: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: background 0.2s, box-shadow 0.2s;
+  }
+  .mil-admin-btn:hover {
+    background: var(--mil-green-dim);
+    box-shadow: 0 0 16px rgba(0,200,160,0.2);
+  }
+
+  /* KPI Grid */
+  .mil-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .mil-kpi {
+    background: var(--mil-surface);
+    border: 1px solid var(--mil-border);
+    border-radius: 12px;
+    padding: 28px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .mil-kpi::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--mil-green), transparent);
+    opacity: 0.6;
+  }
+  .mil-kpi:hover {
+    border-color: rgba(0,200,160,0.4);
+    transform: translateY(-2px);
+  }
+  .mil-kpi-icon {
+    font-size: 26px;
+    line-height: 1;
+  }
+  .mil-kpi-value {
+    font-size: 36px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+    letter-spacing: -1px;
+    font-variant-numeric: tabular-nums;
+  }
+  .mil-kpi-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--mil-text-dim);
+  }
+  .mil-kpi-accent { color: var(--mil-green); }
+
+  /* Main grid */
+  .mil-grid {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width:900px) { .mil-grid { grid-template-columns:1fr; } }
+
+  /* Panel */
+  .mil-panel {
+    background: var(--mil-surface);
+    border: 1px solid var(--mil-border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .mil-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--mil-border);
+    background: var(--mil-surface2);
+  }
+  .mil-panel-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--mil-text);
+    margin: 0;
+  }
+  .mil-panel-badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--mil-green);
+    background: var(--mil-green-dim);
+    border: 1px solid rgba(0,200,160,0.3);
+    padding: 3px 10px;
+    border-radius: 4px;
+  }
+
+  /* Table */
+  .mil-table-wrap { overflow-x: auto; }
+  .mil-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .mil-table thead tr { background: var(--mil-surface2); }
+  .mil-table th {
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--mil-text-dim);
+    border-bottom: 1px solid var(--mil-border);
+    white-space: nowrap;
+  }
+  .mil-table td {
+    padding: 11px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    vertical-align: middle;
+    color: var(--mil-text);
+  }
+  .mil-table tbody tr:last-child td { border-bottom: none; }
+  .mil-table tbody tr:hover td { background: rgba(0,200,160,0.04); }
+
+  .mil-user-tag {
+    display: inline-block;
+    background: rgba(59,130,246,0.15);
+    color: #93c5fd;
+    border: 1px solid rgba(59,130,246,0.25);
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+    white-space: nowrap;
+  }
+  .mil-quiz-name { color: #cbd5e1; font-weight: 500; }
+  .mil-date-cell { color: var(--mil-text-dim); font-size: 12px; white-space: nowrap; }
+
+  /* Score badges */
+  .mil-score {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+  }
+  .mil-score.s-ex  { background:rgba(0,200,160,0.15); color:#34d399; border:1px solid rgba(0,200,160,0.3); }
+  .mil-score.s-gd  { background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3); }
+  .mil-score.s-ok  { background:rgba(245,158,11,0.12); color:#fbbf24; border:1px solid rgba(245,158,11,0.3); }
+  .mil-score.s-low { background:rgba(239,68,68,0.12);  color:#f87171; border:1px solid rgba(239,68,68,0.3); }
+
+  /* Leaderboard */
+  .mil-lb { list-style: none; margin: 0; padding: 8px 0; }
+  .mil-lb-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.15s;
+  }
+  .mil-lb-item:last-child { border-bottom: none; }
+  .mil-lb-item:hover { background: rgba(0,200,160,0.04); }
+  .mil-lb-rank {
+    width: 24px; height: 24px;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+    flex-shrink: 0;
+  }
+  .mil-lb-item:nth-child(1) .mil-lb-rank { background:#f59e0b; color:#000; }
+  .mil-lb-item:nth-child(2) .mil-lb-rank { background:#94a3b8; color:#000; }
+  .mil-lb-item:nth-child(3) .mil-lb-rank { background:#b45309; color:#fff; }
+  .mil-lb-item:nth-child(n+4) .mil-lb-rank { background:var(--mil-surface2); color:var(--mil-text-dim); border:1px solid var(--mil-border); }
+  .mil-lb-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mil-text);
+    font-family: 'Courier New', monospace;
+  }
+  .mil-lb-score {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--mil-green);
+    font-variant-numeric: tabular-nums;
+  }
+  .mil-lb-meta {
+    font-size: 11px;
+    color: var(--mil-text-dim);
+    white-space: nowrap;
+  }
+
+  .mil-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--mil-text-dim);
+    font-size: 13px;
+    letter-spacing: 0.5px;
+  }
+</style>
 {% endblock %}
+
+{% block content %}
+<div class="mil-wrap">
+
+  <!-- Header -->
+  <div class="mil-header">
+    <div class="mil-header-left">
+      <span class="mil-header-tag">LIVE — Command Center</span>
+      <h1 class="mil-title">Site Overview</h1>
+      <p class="mil-subtitle">Real-time summary of platform activity and engagement</p>
+    </div>
+    <a href="/admin/" class="mil-admin-btn">⚙ Administration Panel</a>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="mil-kpi-grid">
+    <div class="mil-kpi">
+      <span class="mil-kpi-icon">👥</span>
+      <span class="mil-kpi-value">{{ user_count }}</span>
+      <span class="mil-kpi-label">Total Users</span>
+    </div>
+    <div class="mil-kpi">
+      <span class="mil-kpi-icon">📝</span>
+      <span class="mil-kpi-value">{{ total_attempts }}</span>
+      <span class="mil-kpi-label">Quiz Attempts</span>
+    </div>
+    <div class="mil-kpi">
+      <span class="mil-kpi-icon">🎯</span>
+      <span class="mil-kpi-value mil-kpi-accent">{{ avg_score|floatformat:1 }}%</span>
+      <span class="mil-kpi-label">Avg. Score</span>
+    </div>
+    <div class="mil-kpi">
+      <span class="mil-kpi-icon">📚</span>
+      <span class="mil-kpi-value">{{ active_modules }}<span style="font-size:20px;color:#334155"> / {{ module_count }}</span></span>
+      <span class="mil-kpi-label">Active Modules</span>
+    </div>
+    <div class="mil-kpi">
+      <span class="mil-kpi-icon">🧩</span>
+      <span class="mil-kpi-value">{{ quiz_count }}</span>
+      <span class="mil-kpi-label">Quizzes</span>
+    </div>
+  </div>
+
+  <!-- Main grid -->
+  <div class="mil-grid">
+
+    <!-- Attempts table -->
+    <div class="mil-panel">
+      <div class="mil-panel-header">
+        <h2 class="mil-panel-title">Recent Quiz Attempts</h2>
+        <span class="mil-panel-badge">Last 20</span>
+      </div>
+      {% if attempts %}
+      <div class="mil-table-wrap">
+        <table class="mil-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Quiz</th>
+              <th>Score</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in attempts %}
+            <tr>
+              <td><span class="mil-user-tag">{{ a.user.username }}</span></td>
+              <td class="mil-quiz-name">{{ a.quiz.title }}</td>
+              <td>
+                <span class="mil-score {% if a.score >= 90 %}s-ex{% elif a.score >= 75 %}s-gd{% elif a.score >= 60 %}s-ok{% else %}s-low{% endif %}">
+                  {{ a.score|floatformat:1 }}%
+                </span>
+              </td>
+              <td class="mil-date-cell">{{ a.taken_at|date:"M d, Y, g:i a" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="mil-empty">NO RECORDS FOUND</div>
+      {% endif %}
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="mil-panel">
+      <div class="mil-panel-header">
+        <h2 class="mil-panel-title">Top Performers</h2>
+        <span class="mil-panel-badge">Avg Score</span>
+      </div>
+      {% if top_scorers %}
+      <ol class="mil-lb">
+        {% for s in top_scorers %}
+        <li class="mil-lb-item">
+          <span class="mil-lb-rank">{{ forloop.counter }}</span>
+          <span class="mil-lb-name">{{ s.user__username }}</span>
+          <span class="mil-lb-score">{{ s.avg|floatformat:1 }}%</span>
+          <span class="mil-lb-meta">{{ s.attempts }}×</span>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <div class="mil-empty">INSUFFICIENT DATA</div>
+      {% endif %}
+    </div>
+
+  </div><!-- /mil-grid -->
+</div><!-- /mil-wrap -->
+{% endblock %}
+

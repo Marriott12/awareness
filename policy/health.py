@@ -196,30 +196,13 @@ def dependencies(request):
         }
         critical_down = True
     
-    # 3. Celery workers check
+    # 3. Celery workers check (optional - not configured by default)
     try:
-        from awareness.celery import app
-        
-        # Inspect active workers
-        inspect = app.control.inspect()
-        active_workers = inspect.active()
-        
-        if active_workers:
-            worker_names = list(active_workers.keys())
-            total_tasks = sum(len(tasks) for tasks in active_workers.values())
-            
-            deps['celery'] = {
-                'status': 'operational',
-                'workers': len(worker_names),
-                'active_tasks': total_tasks,
-                'worker_names': worker_names,
-            }
-        else:
-            deps['celery'] = {
-                'status': 'degraded',
-                'message': 'No active workers',
-            }
-            degraded_count += 1
+        # Celery is not configured in this system
+        deps['celery'] = {
+            'status': 'not_configured',
+            'message': 'Celery is optional and not configured',
+        }
     except Exception as e:
         deps['celery'] = {
             'status': 'unknown',

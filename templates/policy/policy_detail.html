@@ -1,66 +1,145 @@
 {% extends 'base.html' %}
-{% block content %}
-<h1>{{ policy.name }}</h1>
-<p>{{ policy.description }}</p>
 
-<div style="background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px;">
-  <p><strong>Version:</strong> {{ policy.version }}</p>
-  <p><strong>Status:</strong> {{ policy.get_lifecycle_display }}</p>
-  <p><strong>Notification Channel:</strong> {{ policy.notification_channel|default:"Not configured" }}</p>
-  {% if policy.sla_hours %}
-    <p><strong>SLA:</strong> {{ policy.sla_hours }} hours</p>
+{% block title %}{{ policy.name }} - Awareness Portal{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+  <div>
+    <h1>{{ policy.name }}</h1>
+    <p class="subtitle">{{ policy.description }}</p>
+  </div>
+  <div class="action-buttons">
+    <a href="{% url 'policy:policies_list' %}" class="action-btn secondary">
+      <span class="btn-icon">←</span>
+      <span class="btn-text">All Policies</span>
+    </a>
+  </div>
+</div>
+
+<div class="dashboard-grid">
+  <!-- Policy Information -->
+  <div class="dashboard-card">
+    <h3>📊 Policy Information</h3>
+    <div class="info-grid">
+      <div class="info-item">
+        <div class="info-label">Version</div>
+        <div class="info-value">{{ policy.version }}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Status</div>
+        <div class="info-value">
+          <span class="status-badge {% if policy.lifecycle == 'active' %}resolved{% elif policy.lifecycle == 'draft' %}new{% else %}unresolved{% endif %}">
+            {{ policy.get_lifecycle_display }}
+          </span>
+        </div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Notification</div>
+        <div class="info-value">{{ policy.notification_channel|default:"Not configured" }}</div>
+      </div>
+      {% if policy.sla_hours %}
+      <div class="info-item">
+        <div class="info-label">SLA</div>
+        <div class="info-value">{{ policy.sla_hours }} hours</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ML Risk Assessment -->
+  {% if ml_score %}
+  <div class="dashboard-card" style="background:{% if ml_score.risk_level == 'High' %}#fff5f5{% elif ml_score.risk_level == 'Medium' %}#fffbeb{% else %}#f0fdf4{% endif %}; border-color:{% if ml_score.risk_level == 'High' %}#fecaca{% elif ml_score.risk_level == 'Medium' %}#fef08a{% else %}#bbf7d0{% endif %};">
+    <h3>🤖 ML Risk Assessment</h3>
+    <div class="stats-grid" style="grid-template-columns:repeat(2, 1fr);">
+      <div class="stat-card" style="background:#fff;">
+        <div class="stat-content">
+          <h3>{{ ml_score.score|floatformat:1 }}%</h3>
+          <p>Risk Score</p>
+        </div>
+      </div>
+      <div class="stat-card" style="background:#fff;">
+        <div class="stat-content">
+          <h3>{{ ml_score.risk_level }}</h3>
+          <p>Risk Level</p>
+        </div>
+      </div>
+    </div>
+  </div>
   {% endif %}
 </div>
 
-{% if ml_score %}
-<div style="background: {% if ml_score.risk_level == 'High' %}#ffebee{% elif ml_score.risk_level == 'Medium' %}#fff3e0{% else %}#e8f5e9{% endif %}; padding: 15px; margin: 15px 0; border-radius: 5px;">
-  <h3>🤖 ML Risk Assessment</h3>
-  <p><strong>Your Risk Score:</strong> {{ ml_score.score|floatformat:1 }}%</p>
-  <p><strong>Risk Level:</strong> {{ ml_score.risk_level }}</p>
-</div>
-{% endif %}
-
-<h2>Controls ({{ controls.count }})</h2>
-{% if controls %}
-  {% for control in controls %}
-    <div style="border-left: 4px solid {% if control.severity == 'critical' %}#d32f2f{% elif control.severity == 'high' %}#f57c00{% elif control.severity == 'medium' %}#fbc02d{% else %}#388e3c{% endif %}; padding: 10px; margin: 10px 0; background: #fafafa;">
-      <h3>{{ control.name }}</h3>
-      <p>{{ control.description }}</p>
-      <p><strong>Severity:</strong> {{ control.get_severity_display }} | <strong>Active:</strong> {{ control.active|yesno:"Yes,No" }}</p>
-      <p><strong>Rules:</strong> {{ control.rules.count }}</p>
-    </div>
-  {% endfor %}
-{% else %}
-  <p>No controls defined for this policy.</p>
-{% endif %}
-
-<h2>My Violations for This Policy ({{ my_violations.count }})</h2>
-{% if my_violations %}
-  <table style="width: 100%; border-collapse: collapse;">
-    <thead>
-      <tr style="background: #f5f5f5;">
-        <th style="padding: 10px; text-align: left;">Control</th>
-        <th style="padding: 10px; text-align: left;">Severity</th>
-        <th style="padding: 10px; text-align: left;">Timestamp</th>
-        <th style="padding: 10px; text-align: left;">Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for violation in my_violations %}
-        <tr style="border-bottom: 1px solid #ddd;">
-          <td style="padding: 10px;">{{ violation.control.name }}</td>
-          <td style="padding: 10px;">{{ violation.get_severity_display }}</td>
-          <td style="padding: 10px;">{{ violation.timestamp|date:"Y-m-d H:i" }}</td>
-          <td style="padding: 10px;">{{ violation.resolved|yesno:"Resolved,Open" }}</td>
-        </tr>
+<!-- Controls Section -->
+<div class="dashboard-card" style="margin-top:24px;">
+  <h3>🔒 Controls ({{ controls.count }})</h3>
+  {% if controls %}
+    <div class="controls-list" style="display:flex; flex-direction:column; gap:16px; margin-top:16px;">
+      {% for control in controls %}
+        <div class="control-item" style="border-left:4px solid {% if control.severity == 'critical' %}#dc2626{% elif control.severity == 'high' %}#ea580c{% elif control.severity == 'medium' %}#ca8a04{% else %}#16a34a{% endif %}; padding:16px; background:var(--bg); border-radius:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:8px;">
+            <h4 style="margin:0; color:var(--text-primary);">{{ control.name }}</h4>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span class="severity-badge severity-{{ control.severity }}">{{ control.get_severity_display }}</span>
+              {% if control.active %}
+                <span class="status-badge resolved">✓ Active</span>
+              {% else %}
+                <span class="status-badge unresolved">Inactive</span>
+              {% endif %}
+            </div>
+          </div>
+          <p style="margin:8px 0 0 0; color:var(--text-secondary); font-size:14px; line-height:1.6;">{{ control.description }}</p>
+          <p style="margin:8px 0 0 0; font-size:13px; color:var(--text-secondary);">
+            <strong>Rules:</strong> {{ control.rules.count }}
+          </p>
+        </div>
       {% endfor %}
-    </tbody>
-  </table>
-{% else %}
-  <p>✅ You have no violations for this policy. Great job!</p>
-{% endif %}
+    </div>
+  {% else %}
+    <div class="empty-state" style="margin-top:16px;">
+      <p>No controls defined for this policy.</p>
+    </div>
+  {% endif %}
+</div>
 
-<div style="margin-top: 20px;">
-  <a href="{% url 'policy:policies_list' %}">← Back to Policies</a>
+<!-- My Violations Section -->
+<div class="dashboard-card" style="margin-top:24px;">
+  <h3>⚠️ My Violations for This Policy ({{ my_violations.count }})</h3>
+  {% if my_violations %}
+    <div class="table-responsive" style="margin-top:16px;">
+      <table class="compliance-table">
+        <thead>
+          <tr>
+            <th>Control</th>
+            <th>Severity</th>
+            <th>Timestamp</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for violation in my_violations %}
+            <tr {% if not violation.resolved %}class="unresolved"{% endif %}>
+              <td><strong>{{ violation.control.name }}</strong></td>
+              <td>
+                <span class="severity-badge severity-{{ violation.severity }}">{{ violation.get_severity_display }}</span>
+              </td>
+              <td>{{ violation.timestamp|date:"M d, Y g:i A" }}</td>
+              <td>
+                {% if violation.resolved %}
+                  <span class="status-badge resolved">✓ Resolved</span>
+                {% else %}
+                  <span class="status-badge unresolved">⚠ Open</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state" style="margin-top:16px;">
+      <div class="empty-icon">✅</div>
+      <h3>No Violations</h3>
+      <p>You have no violations for this policy. Great job!</p>
+    </div>
+  {% endif %}
 </div>
 {% endblock %}

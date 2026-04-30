@@ -1,12 +1,42 @@
 {% extends 'base.html' %}
+
+{% block title %}Quizzes - Awareness Portal{% endblock %}
+
 {% block content %}
-  <h2>Quizzes</h2>
-  <p>Available quizzes</p>
-  <ul>
+<div class="dashboard-header">
+  <div>
+    <h1>📝 Knowledge Quizzes</h1>
+    <p class="subtitle">Test your security awareness knowledge with interactive quizzes</p>
+  </div>
+</div>
+
+{% if quizzes %}
+  <div class="training-grid">
     {% for quiz in quizzes %}
-      <li><a href="{% url 'take_quiz' quiz.id %}">{{ quiz.title }}</a></li>
-    {% empty %}
-      <li>No quizzes available</li>
+      <a href="{% url 'quizzes:take' quiz.id %}" class="training-card">
+        <div class="training-header">
+          <div class="training-icon">❓</div>
+          <span class="status-badge new">Start Quiz</span>
+        </div>
+        <div class="training-content">
+          <h3>{{ quiz.title }}</h3>
+          {% if quiz.description %}
+            <p class="training-description">{{ quiz.description|truncatewords:20 }}</p>
+          {% else %}
+            <p class="training-description">Test your knowledge and improve your security awareness skills.</p>
+          {% endif %}
+        </div>
+        <div class="training-footer">
+          <span class="btn-link">Take Quiz →</span>
+        </div>
+      </a>
     {% endfor %}
-  </ul>
+  </div>
+{% else %}
+  <div class="empty-state">
+    <div class="empty-icon">📋</div>
+    <h3>No Quizzes Available</h3>
+    <p>New quizzes will appear here when they become available.</p>
+  </div>
+{% endif %}
 {% endblock %}

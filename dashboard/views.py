@@ -1,7 +1,8 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
-from quizzes.models import QuizAttempt
-from training.models import TrainingProgress
+from django.db.models import Avg, Count
+from quizzes.models import QuizAttempt, Quiz
+from training.models import TrainingModule, TrainingProgress
 from django.contrib.auth import get_user_model
 import logging
 
@@ -35,18 +36,36 @@ def user_dashboard(request):
 
 @user_passes_test(lambda u: u.is_staff or u.is_superuser)
 def admin_dashboard(request):
-    # simple admin summary: recent attempts site-wide + user/module counts
-    attempts_qs = QuizAttempt.objects.all().order_by("-taken_at")[:20]
-    recent_attempts = list(attempts_qs.select_related("user", "quiz")[:20])
-    module_count = TrainingProgress.objects.values("module").distinct().count()
     User = get_user_model()
+    attempts_qs = QuizAttempt.objects.select_related("user", "quiz").order_by("-taken_at")[:20]
+    recent_attempts = list(attempts_qs)
+
+    avg_score = QuizAttempt.objects.aggregate(avg=Avg("score"))["avg"] or 0
+    total_attempts = QuizAttempt.objects.count()
+    module_count = TrainingModule.objects.count()
+    active_modules = TrainingProgress.objects.values("module").distinct().count()
     user_count = User.objects.count()
+    quiz_count = Quiz.objects.count()
+
+    # Top scorers: users with highest average score (min 2 attempts)
+    top_scorers = (
+        QuizAttempt.objects.values("user__username")
+        .annotate(avg=Avg("score"), attempts=Count("id"))
+        .filter(attempts__gte=2)
+        .order_by("-avg")[:5]
+    )
+
     return render(
         request,
         "admin_dashboard.html",
         {
             "attempts": recent_attempts,
             "module_count": module_count,
+            "active_modules": active_modules,
             "user_count": user_count,
+            "quiz_count": quiz_count,
+            "avg_score": avg_score,
+            "total_attempts": total_attempts,
+            "top_scorers": top_scorers,
         },
     )

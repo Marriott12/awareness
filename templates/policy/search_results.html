@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Search Results{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Search Results</h2>
+    
+    {% if query %}
+        <p class="lead">Search results for: <strong>{{ query }}</strong></p>
+        <p class="text-muted">Found {{ total }} results</p>
+    {% else %}
+        <p class="lead">Enter a search query to begin</p>
+    {% endif %}
+    
+    <!-- Search form -->
+    <form method="get" action="{% url 'policy:global_search' %}" class="mb-4">
+        <div class="input-group">
+            <input type="text" name="q" class="form-control" placeholder="Search policies, training, case studies..." value="{{ query }}" autocomplete="off" id="searchInput">
+            <button class="btn btn-primary" type="submit">
+                <i class="fas fa-search"></i> Search
+            </button>
+        </div>
+        <div id="suggestions" class="list-group position-absolute" style="z-index: 1000; display: none;"></div>
+    </form>
+    
+    {% if query %}
+        <!-- Policies -->
+        {% if results.policies %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4><i class="fas fa-shield-alt"></i> Policies ({{ results.policies.hits.total.value }})</h4>
+            </div>
+            <div class="list-group list-group-flush">
+                {% for policy in results.policies %}
+                <a href="{% url 'policy:policy_detail' policy.meta.id %}" class="list-group-item list-group-item-action">
+                    <h5 class="mb-1">{{ policy.name }}</h5>
+                    <p class="mb-1">{{ policy.description|truncatewords:30 }}</p>
+                    <small class="text-muted">Version: {{ policy.version }} | State: {{ policy.state }}</small>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Controls -->
+        {% if results.controls %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4><i class="fas fa-cog"></i> Controls ({{ results.controls.hits.total.value }})</h4>
+            </div>
+            <div class="list-group list-group-flush">
+                {% for control in results.controls %}
+                <div class="list-group-item">
+                    <h5 class="mb-1">{{ control.name }}</h5>
+                    <p class="mb-1">{{ control.description|truncatewords:30 }}</p>
+                    <small class="text-muted">Category: {{ control.category }} | Policy: {{ control.policy_name }}</small>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Training Modules -->
+        {% if results.training %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4><i class="fas fa-graduation-cap"></i> Training Modules ({{ results.training.hits.total.value }})</h4>
+            </div>
+            <div class="list-group list-group-flush">
+                {% for module in results.training %}
+                <a href="{% url 'training:training_detail' module.meta.id %}" class="list-group-item list-group-item-action">
+                    <h5 class="mb-1">{{ module.title }}</h5>
+                    <p class="mb-1">{{ module.description|truncatewords:30 }}</p>
+                    <small class="text-muted">Duration: {{ module.duration_minutes }} minutes</small>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Case Studies -->
+        {% if results.case_studies %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4><i class="fas fa-book"></i> Case Studies ({{ results.case_studies.hits.total.value }})</h4>
+            </div>
+            <div class="list-group list-group-flush">
+                {% for case_study in results.case_studies %}
+                <a href="{% url 'case_studies:case_study_detail' case_study.meta.id %}" class="list-group-item list-group-item-action">
+                    <h5 class="mb-1">{{ case_study.title }}</h5>
+                    <p class="mb-1">{{ case_study.summary|truncatewords:30 }}</p>
+                    <small class="text-muted">Type: {{ case_study.incident_type }} | Severity: {{ case_study.severity }}</small>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if total == 0 %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> No results found for "{{ query }}". Try different keywords.
+        </div>
+        {% endif %}
+    {% endif %}
+</div>
+
+<script>
+// Autocomplete suggestions
+const searchInput = document.getElementById('searchInput');
+const suggestionsDiv = document.getElementById('suggestions');
+
+searchInput.addEventListener('input', async function() {
+    const query = this.value.trim();
+    
+    if (query.length < 2) {
+        suggestionsDiv.style.display = 'none';
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/policy/search/suggestions/?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        
+        if (data.suggestions.length > 0) {
+            suggestionsDiv.innerHTML = data.suggestions.map(s => 
+                `<a href="?q=${encodeURIComponent(s)}" class="list-group-item list-group-item-action">${s}</a>`
+            ).join('');
+            suggestionsDiv.style.display = 'block';
+        } else {
+            suggestionsDiv.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Suggestion error:', error);
+    }
+});
+
+// Hide suggestions on click outside
+document.addEventListener('click', function(e) {
+    if (!searchInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+        suggestionsDiv.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

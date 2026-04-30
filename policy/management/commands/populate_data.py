@@ -202,6 +202,87 @@ class Command(BaseCommand):
                     },
                 ]
             },
+            {
+                'name': 'Endpoint Security Policy',
+                'description': 'Controls for safe use of endpoints, peripherals, and software to prevent data exfiltration and unauthorized system modifications.',
+                'version': '1.0',
+                'lifecycle': 'active',
+                'notification_channel': 'endpoint-security@company.com',
+                'sla_hours': 2,
+                'controls': [
+                    {
+                        'name': 'USB Device Control',
+                        'description': 'Prevent unauthorized USB and external device usage to mitigate data exfiltration and malware introduction risks.',
+                        'severity': 'critical',
+                        'rules': [
+                            {'name': 'Unauthorized USB Device', 'operator': '==', 'left_operand': 'detail.authorized', 'right_value': False},
+                            {'name': 'Unknown USB Vendor', 'operator': '==', 'left_operand': 'detail.vendor', 'right_value': 'Unknown'},
+                        ]
+                    },
+                    {
+                        'name': 'Software Execution Control',
+                        'description': 'Prevent execution of prohibited software including remote access tools and unauthorized applications.',
+                        'severity': 'critical',
+                        'rules': [
+                            {'name': 'Prohibited Software Execution', 'operator': '==', 'left_operand': 'detail.prohibited', 'right_value': True},
+                        ]
+                    },
+                ]
+            },
+            {
+                'name': 'Privileged Access Monitoring',
+                'description': 'Enhanced monitoring and controls for privileged user accounts to prevent unauthorized privilege escalation and excessive administrative actions.',
+                'version': '1.0',
+                'lifecycle': 'active',
+                'notification_channel': 'privilege-monitoring@company.com',
+                'sla_hours': 1,
+                'controls': [
+                    {
+                        'name': 'Privilege Escalation Detection',
+                        'description': 'Detect and alert when users gain elevated privileges (staff or superuser status).',
+                        'severity': 'critical',
+                        'rules': [
+                            {'name': 'Privilege Escalation Event', 'operator': '==', 'left_operand': 'summary', 'right_value': 'privilege_escalated'},
+                            {'name': 'Initial Privilege Grant', 'operator': '==', 'left_operand': 'summary', 'right_value': 'initial_privilege_granted'},
+                        ]
+                    },
+                    {
+                        'name': 'Admin Action Monitoring',
+                        'description': 'Track all administrative actions to detect anomalous behavior patterns.',
+                        'severity': 'high',
+                        'rules': [
+                            {'name': 'Admin Action Logged', 'operator': '==', 'left_operand': 'event_type', 'right_value': 'admin'},
+                        ]
+                    },
+                ]
+            },
+            {
+                'name': 'Policy Compliance and Attestation',
+                'description': 'Ensure users acknowledge and attest to security policies, tracking compliance through attestation records.',
+                'version': '1.0',
+                'lifecycle': 'active',
+                'notification_channel': 'compliance@company.com',
+                'sla_hours': 48,
+                'controls': [
+                    {
+                        'name': 'Policy Attestation Requirement',
+                        'description': 'Users must explicitly attest to reading and understanding security policies.',
+                        'severity': 'medium',
+                        'rules': [
+                            {'name': 'Missing Policy Attestation', 'operator': '==', 'left_operand': 'user.has_attested', 'right_value': False},
+                        ]
+                    },
+                    {
+                        'name': 'Training Completion Tracking',
+                        'description': 'Monitor security awareness training completion and quiz performance.',
+                        'severity': 'medium',
+                        'rules': [
+                            {'name': 'Training Incomplete', 'operator': '==', 'left_operand': 'training.completed', 'right_value': False},
+                            {'name': 'Quiz Failed', 'operator': '<', 'left_operand': 'quiz.score', 'right_value': '70'},
+                        ]
+                    },
+                ]
+            },
         ]
         
         policies = []

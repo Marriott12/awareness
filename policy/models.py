@@ -464,3 +464,30 @@ class ImmutabilityBypassLog(models.Model):
         return f"{status}: {self.get_operation_display()} on {self.model_name} {self.record_id}"
 
 
+class PolicyAttestation(models.Model):
+    """Track user attestations to policies for HLP-04 compliance.
+    
+    Records when users explicitly acknowledge reading and agreeing to policies.
+    Required for demonstrating policy compliance awareness.
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='policy_attestations')
+    policy = models.ForeignKey(Policy, on_delete=models.CASCADE, related_name='attestations')
+    version = models.CharField(max_length=64, help_text='Policy version attested to')
+    attested_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    
+    class Meta:
+        verbose_name = "Policy attestation"
+        verbose_name_plural = "Policy attestations"
+        ordering = ('-attested_at',)
+        unique_together = ['user', 'policy', 'version']
+        indexes = [
+            models.Index(fields=['user', 'policy']),
+            models.Index(fields=['attested_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} attested to {self.policy.name} v{self.version} on {self.attested_at}"
+
+

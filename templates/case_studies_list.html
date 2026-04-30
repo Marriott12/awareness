@@ -1,17 +1,44 @@
 {% extends 'base.html' %}
+
+{% block title %}Case Studies - Awareness Portal{% endblock %}
+
 {% block content %}
-  <h2>Case Studies</h2>
-  <p>Real-world OPSEC breach summaries and security awareness lessons.</p>
-  {% if case_studies %}
-    <ul>
+<div class="dashboard-header">
+  <div>
+    <h1>📚 Case Studies</h1>
+    <p class="subtitle">Real-world OPSEC breach summaries and security awareness lessons</p>
+  </div>
+</div>
+
+{% if case_studies %}
+  <div class="case-studies-grid">
     {% for study in case_studies %}
-      <li>
-        <h3>{{ study.title }}</h3>
-        <p>{{ study.summary }}</p>
-      </li>
+      <div class="case-study-card">
+        <div class="case-study-icon">🔍</div>
+        <div class="case-study-content">
+          <h3>{{ study.title }}</h3>
+          <p class="case-study-summary">{{ study.summary }}</p>
+          {% if study.lessons_learned %}
+            <div class="case-study-lessons">
+              <strong>💡 Lessons Learned:</strong>
+              <p>{{ study.lessons_learned|truncatewords:30 }}</p>
+            </div>
+          {% endif %}
+        </div>
+        <div class="case-study-footer">
+          <span class="case-study-badge">{{ study.severity|default:"Medium" }}</span>
+          {% if study.date %}
+            <span class="case-study-date">{{ study.date|date:"M d, Y" }}</span>
+          {% endif %}
+        </div>
+      </div>
     {% endfor %}
-    </ul>
-  {% else %}
-    <p>No case studies available yet. Check back later or contact your administrator.</p>
-  {% endif %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <div class="empty-icon">📂</div>
+    <h3>No Case Studies Available</h3>
+    <p>Check back later or contact your administrator to add case studies.</p>
+  </div>
+{% endif %}
 {% endblock %}
