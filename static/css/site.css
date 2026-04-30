@@ -96,6 +96,25 @@ body {
 	transition:box-shadow 0.2s, transform 0.2s;
 }
 .nav-cta:hover { box-shadow:0 4px 12px rgba(0,0,0,0.15); transform:translateY(-1px); }
+/* Active nav link */
+.nav-links a.nav-active { background:rgba(255,255,255,0.2); color:#fff; font-weight:700; }
+/* Hamburger button (hidden on desktop) */
+.nav-hamburger {
+	display:none;
+	flex-direction:column;
+	justify-content:space-between;
+	width:28px; height:20px;
+	background:none; border:none; cursor:pointer;
+	padding:0; margin-left:auto; flex-shrink:0;
+}
+.nav-hamburger span {
+	display:block; height:2px; width:100%;
+	background:#fff; border-radius:2px;
+	transition:transform 0.2s, opacity 0.2s;
+}
+.nav-hamburger.nav-open span:nth-child(1) { transform:translateY(9px) rotate(45deg); }
+.nav-hamburger.nav-open span:nth-child(2) { opacity:0; }
+.nav-hamburger.nav-open span:nth-child(3) { transform:translateY(-9px) rotate(-45deg); }
 
 /* ─── Footer Refinements ───────────────────────────────────────── */
 footer {
@@ -375,11 +394,12 @@ main.container:has(.hero) {
 	.stats-strip-item { padding:20px 24px; }
 	.stats-strip-divider { display:none; }
 	.features { padding:48px 24px; }
-	.nav-links { display:none; }
+	/* nav: hide links by default, show when open */
+	.nav-links { display:none; flex-direction:column; position:absolute; top:100%; left:0; right:0; background:var(--brand); padding:8px 16px 16px; box-shadow:0 4px 12px rgba(0,0,0,0.2); z-index:200; }
+	.nav-links.nav-open { display:flex; }
+	.nav-hamburger { display:flex; }
+	header { position:relative; }
 }
-	line-height:1.6;
-}
-
 /* Header & Navigation */
 header { 
 	background:var(--brand); 
@@ -567,6 +587,60 @@ header {
 	background:#fef3c7;
 	color:#92400e;
 }
+
+/* ─── Attempt Cards (dashboard) ─────────────────────────────────── */
+.card-header-row {
+	display:flex; align-items:center; justify-content:space-between;
+	margin-bottom:16px;
+}
+.card-header-row h3 { margin:0; font-size:17px; font-weight:700; }
+.card-header-link { font-size:13px; color:var(--brand); text-decoration:none; font-weight:500; }
+.card-header-link:hover { text-decoration:underline; }
+
+.attempts-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px; }
+
+.attempt-item {
+	display:flex; align-items:center; gap:12px;
+	padding:12px 14px;
+	border-radius:10px;
+	background:#f9fafb;
+	border-left:4px solid var(--border);
+	transition:background 0.15s;
+}
+.attempt-item:hover { background:#f1f5f9; }
+.attempt-item.attempt-high { border-left-color:#10b981; }
+.attempt-item.attempt-mid  { border-left-color:#f59e0b; }
+.attempt-item.attempt-low  { border-left-color:#ef4444; }
+
+.attempt-body {
+	flex:1;
+	display:flex; flex-direction:column; gap:3px;
+	min-width:0;
+}
+.attempt-title {
+	font-size:14px; font-weight:600; color:var(--text-primary);
+	white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.attempt-date { font-size:12px; color:var(--text-secondary); }
+
+.attempt-score-wrap { display:flex; flex-direction:column; align-items:flex-end; gap:5px; flex-shrink:0; }
+.attempt-score {
+	font-size:15px; font-weight:700; letter-spacing:-0.3px;
+}
+.attempt-score.sc-high { color:#059669; }
+.attempt-score.sc-mid  { color:#d97706; }
+.attempt-score.sc-low  { color:#dc2626; }
+
+.attempt-bar-track {
+	width:80px; height:5px;
+	background:#e5e7eb; border-radius:3px; overflow:hidden;
+}
+.attempt-bar-fill {
+	height:100%; border-radius:3px; transition:width 0.4s ease;
+}
+.attempt-bar-fill.sc-high { background:#10b981; }
+.attempt-bar-fill.sc-mid  { background:#f59e0b; }
+.attempt-bar-fill.sc-low  { background:#ef4444; }
 
 /* Dashboard Actions */
 .dashboard-actions {

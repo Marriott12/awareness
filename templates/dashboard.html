@@ -55,18 +55,26 @@
 
     <!-- Recent Attempts -->
     <div class="dashboard-card">
-      <h3>Recent Quiz Attempts</h3>
+      <div class="card-header-row">
+        <h3>Recent Quiz Attempts</h3>
+        <a href="{% url 'quizzes:list' %}" class="card-header-link">Take a quiz →</a>
+      </div>
       {% if attempts %}
-        <ul class="activity-list">
+        <ul class="attempts-list">
           {% for a in attempts %}
-            <li class="activity-item">
-              <div class="activity-icon">
-                {% if a.score >= 80 %}🏆{% elif a.score >= 60 %}⭐{% else %}📝{% endif %}
+            <li class="attempt-item {% if a.score >= 80 %}attempt-high{% elif a.score >= 60 %}attempt-mid{% else %}attempt-low{% endif %}">
+              <div class="attempt-body">
+                <span class="attempt-title">{{ a.quiz.title }}</span>
+                <span class="attempt-date">{{ a.taken_at|date:"M j, Y · g:i A" }}</span>
               </div>
-              <div class="activity-content">
-                <strong>{{ a.quiz.title }}</strong>
-                <span class="score-badge score-{{ a.score|floatformat:0|cut:'.0' }}">{{ a.score|floatformat:1 }}%</span>
-                <small>{{ a.taken_at|date:"M d, Y g:i A" }}</small>
+              <div class="attempt-score-wrap">
+                <span class="attempt-score {% if a.score >= 80 %}sc-high{% elif a.score >= 60 %}sc-mid{% else %}sc-low{% endif %}">
+                  {{ a.score|floatformat:1 }}%
+                </span>
+                <div class="attempt-bar-track">
+                  <div class="attempt-bar-fill {% if a.score >= 80 %}sc-high{% elif a.score >= 60 %}sc-mid{% else %}sc-low{% endif %}"
+                       style="width:{{ a.score|floatformat:0 }}%"></div>
+                </div>
               </div>
             </li>
           {% endfor %}
@@ -80,15 +88,20 @@
 
     <!-- Training Progress -->
     <div class="dashboard-card">
-      <h3>Completed Training</h3>
+      <div class="card-header-row">
+        <h3>Completed Training</h3>
+        <a href="{% url 'training_list' %}" class="card-header-link">Browse modules →</a>
+      </div>
       {% if progress %}
-        <ul class="activity-list">
+        <ul class="attempts-list">
           {% for p in progress %}
-            <li class="activity-item">
-              <div class="activity-icon">✓</div>
-              <div class="activity-content">
-                <strong>{{ p.module.title }}</strong>
-                <small>{{ p.completed_at|date:"M d, Y" }}</small>
+            <li class="attempt-item attempt-high">
+              <div class="attempt-body">
+                <span class="attempt-title">{{ p.module.title }}</span>
+                <span class="attempt-date">Completed {{ p.completed_at|date:"M j, Y" }}</span>
+              </div>
+              <div class="attempt-score-wrap">
+                <span class="attempt-score sc-high">✓</span>
               </div>
             </li>
           {% endfor %}
@@ -127,7 +140,7 @@
 
 {% block scripts %}
   <script id="attempts-data" type="application/json">{{ attempts_json|safe }}</script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/static/js/chart.umd.min.js"></script>
   <script>
     const attemptsData = JSON.parse(document.getElementById('attempts-data').textContent || '[]');
     if (attemptsData.length > 0) {

@@ -10,15 +10,22 @@
 <body>
 <header>
   <nav class="nav">
-    <div class="nav-links">
+    <a href="{% url 'index' %}" class="nav-brand">
+      <span class="nav-brand-icon">🛡️</span>
+      <span class="nav-brand-text">Awareness Portal</span>
+    </a>
+    <button class="nav-hamburger" id="navToggle" aria-label="Toggle navigation">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="nav-links" id="navLinks">
     {% if user.is_authenticated %}
-      <a href="{% url 'dashboard:home' %}">Dashboard</a>
-      <a href="{% url 'training_list' %}">Training</a>
-      <a href="{% url 'quizzes:list' %}">Quizzes</a>
-      <a href="{% url 'case_studies_list' %}">Case Studies</a>
-      <a href="{% url 'policy:policies_list' %}">Policies</a>
+      <a href="{% url 'dashboard:home' %}" {% if request.resolver_match.namespace == 'dashboard' %}class="nav-active"{% endif %}>Dashboard</a>
+      <a href="{% url 'training_list' %}" {% if 'training' in request.path %}class="nav-active"{% endif %}>Training</a>
+      <a href="{% url 'quizzes:list' %}" {% if 'quizzes' in request.path %}class="nav-active"{% endif %}>Quizzes</a>
+      <a href="{% url 'case_studies_list' %}" {% if 'case-studies' in request.path %}class="nav-active"{% endif %}>Case Studies</a>
+      <a href="{% url 'policy:policies_list' %}" {% if 'policy' in request.path %}class="nav-active"{% endif %}>Policies</a>
       {% if user.is_staff or user.is_superuser %}
-        <a href="{% url 'policy:compliance_dashboard' %}">Compliance</a>
+        <a href="{% url 'policy:compliance_dashboard' %}" {% if 'compliance' in request.path %}class="nav-active"{% endif %}>Compliance</a>
         <a href="{% url 'admin:index' %}" class="nav-admin">Admin</a>
       {% endif %}
     {% endif %}
@@ -47,5 +54,9 @@
   </div>
 </footer>
 {% block scripts %}{% endblock %}
+<script>
+  var t=document.getElementById('navToggle'),l=document.getElementById('navLinks');
+  if(t&&l){t.addEventListener('click',function(){l.classList.toggle('nav-open');t.classList.toggle('nav-open');});}
+</script>
 </body>
 </html>

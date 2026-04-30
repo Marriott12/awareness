@@ -4,6 +4,7 @@ from django.db.models import Avg, Count
 from quizzes.models import QuizAttempt, Quiz
 from training.models import TrainingModule, TrainingProgress
 from django.contrib.auth import get_user_model
+import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,14 +24,22 @@ def user_dashboard(request):
     attempts_qs = QuizAttempt.objects.filter(user=request.user).order_by("-taken_at")[
         :10
     ]
-    attempts = list(attempts_qs.values("score", "taken_at", "quiz__title"))
+    # Serialize for Chart.js — convert datetimes to ISO strings
+    attempts_json = json.dumps([
+        {
+            "score": float(a.score),
+            "taken_at": a.taken_at.isoformat(),
+            "quiz__title": a.quiz.title,
+        }
+        for a in attempts_qs
+    ])
     progress = TrainingProgress.objects.filter(user=request.user).select_related(
         "module"
     )[:10]
     return render(
         request,
         "dashboard.html",
-        {"attempts": attempts_qs, "progress": progress, "attempts_json": attempts},
+        {"attempts": attempts_qs, "progress": progress, "attempts_json": attempts_json},
     )
 
 
