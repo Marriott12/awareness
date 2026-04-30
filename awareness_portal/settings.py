@@ -347,6 +347,10 @@ else:
 ML_ENABLED = os.environ.get('ML_ENABLED', 'True').lower() in ('1', 'true', 'yes')
 ML_MODEL_VERSION = os.environ.get('ML_MODEL_VERSION', '1.0')
 ML_MODEL_DIR = Path(os.environ.get('ML_MODEL_DIR', str(BASE_DIR / 'ml_models')))
+ML_STRICT_READINESS = os.environ.get('ML_STRICT_READINESS', 'False').lower() in ('1', 'true', 'yes')
+ML_MIN_LABELS = int(os.environ.get('ML_MIN_LABELS', '50'))
+ML_MIN_POSITIVE_LABELS = int(os.environ.get('ML_MIN_POSITIVE_LABELS', '10'))
+ML_MIN_NEGATIVE_LABELS = int(os.environ.get('ML_MIN_NEGATIVE_LABELS', '10'))
 
 # Rate Limiting Configuration
 GLOBAL_RATE_LIMIT = int(os.environ.get('GLOBAL_RATE_LIMIT', '1000'))

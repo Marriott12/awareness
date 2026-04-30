@@ -331,12 +331,14 @@ class MLRiskScorer:
         """
         if self.model is None:
             raise RuntimeError('No model to save')
-        
-        save_path = path or self.model_path
-        
-        # Update metadata
+
+        # Update version before resolving the save path so versioned filenames line up.
         if version:
+            self.model_version = version
             self.metadata['version'] = version
+        save_path = path or self._get_default_model_path()
+        self.model_path = save_path
+
         self.metadata['saved_at'] = timezone.now().isoformat()
         self.metadata['model_class'] = self.model.__class__.__name__
         
@@ -434,6 +436,20 @@ class MLRiskScorer:
             'high_severity_violations': high,
             'unresolved_violations': unresolved,
         }
+
+    def get_recommendations(self, user_features: Dict[str, Any], risk_result: Dict[str, Any]) -> List[str]:
+        recommendations: List[str] = []
+        if user_features.get('critical_violations', 0) > 0:
+            recommendations.append('Review and resolve critical policy violations first.')
+        if user_features.get('unresolved_violations', 0) > 0:
+            recommendations.append('Address unresolved violations to reduce current risk exposure.')
+        if user_features.get('high_severity_violations', 0) >= 3:
+            recommendations.append('Prioritize refresher training for repeated high-severity issues.')
+        if risk_result.get('risk_level') == 'High':
+            recommendations.append('Escalate this user profile for manual review by the compliance team.')
+        if not recommendations:
+            recommendations.append('Maintain current training cadence and continue monitoring behavior trends.')
+        return recommendations
     
     def _register_model(self, path: str, model_hash: str):
         """Register trained model in database."""

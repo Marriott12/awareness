@@ -1,9 +1,13 @@
 """User-facing policy governance views."""
-from django.shortcuts import render, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from .models import Policy, Control, Violation
-from django.db.models import Count, Q
+from datetime import timedelta
+
 from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
+
+from .models import Control, Policy, Violation
 
 
 @login_required
@@ -17,7 +21,7 @@ def policies_list(request):
 def policy_detail(request, pk):
     """Show details of a specific policy including controls and user's violations."""
     policy = get_object_or_404(Policy, pk=pk, active=True)
-    controls = policy.controls.filter(active=True).prefetch_related('rules')
+    controls = Control.objects.filter(policy=policy, active=True).prefetch_related('rules')
     
     # Show user's own violations for this policy
     my_violations = Violation.objects.filter(
@@ -30,8 +34,8 @@ def policy_detail(request, pk):
     ml_enabled = getattr(settings, 'ML_ENABLED', False)
     if ml_enabled:
         try:
-            from .ml_scorer import MLRiskScorer
-            scorer = MLRiskScorer()
+            from .ml_scorer import get_ml_scorer
+            scorer = get_ml_scorer()
             if scorer.is_ready():
                 # Calculate risk based on user's violation history
                 user_features = {
@@ -72,18 +76,16 @@ def my_violations(request):
     ml_enabled = getattr(settings, 'ML_ENABLED', False)
     if ml_enabled and violations_qs.exists():
         try:
-            from .ml_scorer import MLRiskScorer
-            scorer = MLRiskScorer()
+            from .ml_scorer import get_ml_scorer
+            scorer = get_ml_scorer()
             if scorer.is_ready():
-                # Get top controls that user violates
-                top_controls = violations_qs.values('control__name').annotate(
-                    count=Count('id')
-                ).order_by('-count')[:3]
-                
-                ml_recommendations = [
-                    f"Focus on {ctrl['control__name']} (violated {ctrl['count']} times)"
-                    for ctrl in top_controls
-                ]
+                user_features = {
+                    'total_violations': violations_qs.count(),
+                    'high_severity_violations': violations_qs.filter(severity__in=['high', 'critical']).count(),
+                    'critical_violations': violations_qs.filter(severity='critical').count(),
+                    'unresolved_violations': violations_qs.filter(resolved=False).count(),
+                }
+                ml_recommendations = scorer.get_recommendations(user_features, scorer.predict_risk(user_features))
         except Exception:
             pass
     
@@ -107,14 +109,14 @@ def ml_evaluation(request):
         })
     
     try:
-        from .ml_scorer import MLRiskScorer
-        scorer = MLRiskScorer()
+        from .ml_scorer import get_ml_scorer
+        scorer = get_ml_scorer()
         
         if not scorer.is_ready():
             return render(request, 'policy/ml_evaluation.html', {
                 'ml_enabled': True,
                 'ml_ready': False,
-                'message': 'ML models are being trained. Please check back later.'
+                'message': 'ML models are not ready yet. Label events in admin and train a model first.'
             })
         
         # Get user's violation statistics
@@ -139,11 +141,12 @@ def ml_evaluation(request):
         }
         
         # Get ML prediction
-        risk_score = scorer.predict_risk(user_features)
-        risk_level = 'Low' if risk_score < 0.3 else 'Medium' if risk_score < 0.7 else 'High'
+        risk_result = scorer.predict_risk(user_features)
+        risk_score = risk_result['score']
+        risk_level = risk_result['risk_level']
         
         # Get recommendations
-        recommendations = scorer.get_recommendations(user_features, risk_score)
+        recommendations = scorer.get_recommendations(user_features, risk_result)
         
         # Get top violated policies
         top_policies = Violation.objects.filter(user=request.user).values(
@@ -153,7 +156,7 @@ def ml_evaluation(request):
         return render(request, 'policy/ml_evaluation.html', {
             'ml_enabled': True,
             'ml_ready': True,
-            'risk_score': round(risk_score * 100, 1),
+            'risk_score': risk_score,
             'risk_level': risk_level,
             'recommendations': recommendations,
             'user_features': user_features,
@@ -168,6 +171,3 @@ def ml_evaluation(request):
             'message': f'Error loading ML evaluation: {str(e)}'
         })
 
-
-from django.utils import timezone
-from datetime import timedelta

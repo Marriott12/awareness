@@ -4,11 +4,13 @@ Usage:
     python manage.py train_ml_model --experiment-id 123
     python manage.py train_ml_model --use-all-labels --algorithm gradient_boosting
 """
-from django.core.management.base import BaseCommand
-from policy.models import GroundTruthLabel, Experiment, ScorerArtifact
-from policy.ml_scorer import MLRiskScorer, SKLEARN_AVAILABLE
-from django.utils import timezone
 import sys
+
+from django.conf import settings
+from django.core.management.base import BaseCommand
+
+from policy.ml_scorer import MLRiskScorer, SKLEARN_AVAILABLE
+from policy.models import Experiment, GroundTruthLabel
 
 
 class Command(BaseCommand):
@@ -37,15 +39,21 @@ class Command(BaseCommand):
             help='Skip hyperparameter tuning (faster)'
         )
         parser.add_argument(
-            '--version',
+            '--model-version',
+            dest='model_version',
             default=None,
-            help='Model version tag (default: auto-generated)'
+            help='Model version tag (default: settings.ML_MODEL_VERSION)'
         )
         parser.add_argument(
             '--cv-folds',
             type=int,
             default=5,
             help='Cross-validation folds (default: 5)'
+        )
+        parser.add_argument(
+            '--force',
+            action='store_true',
+            help='Allow training even when label counts are below recommended thresholds'
         )
 
     def handle(self, *args, **options):
@@ -54,21 +62,21 @@ class Command(BaseCommand):
                 'scikit-learn not installed. Run: pip install scikit-learn'
             ))
             sys.exit(1)
-        
+
         exp_id = options.get('experiment_id')
         use_all = options.get('use_all_labels')
         algorithm = options['algorithm']
         tune = not options['no_tuning']
-        version = options['version']
+        version = options['model_version'] or getattr(settings, 'ML_MODEL_VERSION', '1.0')
         cv_folds = options['cv_folds']
-        
+        force = options['force']
+
         if not exp_id and not use_all:
             self.stdout.write(self.style.ERROR(
                 'Specify --experiment-id or --use-all-labels'
             ))
             sys.exit(1)
-        
-        # Gather labeled data
+
         if use_all:
             labels = GroundTruthLabel.objects.all().select_related('event')
             self.stdout.write(f'Using all {labels.count()} labeled samples')
@@ -78,30 +86,41 @@ class Command(BaseCommand):
             except Experiment.DoesNotExist:
                 self.stdout.write(self.style.ERROR(f'Experiment {exp_id} not found'))
                 sys.exit(1)
-            
+
             labels = GroundTruthLabel.objects.filter(experiment=experiment).select_related('event')
             self.stdout.write(f'Using {labels.count()} labels from experiment: {experiment.name}')
-        
-        if labels.count() < 20:
-            self.stdout.write(self.style.WARNING(
-                f'Only {labels.count()} samples - ML may not perform well (recommend 100+)'
-            ))
-        
-        # Prepare training data
+
+        total_labels = labels.count()
+        positive_labels = labels.filter(is_violation=True).count()
+        negative_labels = labels.filter(is_violation=False).count()
+        min_labels = getattr(settings, 'ML_MIN_LABELS', 50)
+        min_positive = getattr(settings, 'ML_MIN_POSITIVE_LABELS', 10)
+        min_negative = getattr(settings, 'ML_MIN_NEGATIVE_LABELS', 10)
+
+        if total_labels < min_labels or positive_labels < min_positive or negative_labels < min_negative:
+            message = (
+                f'Insufficient labeled data for reliable ML training: '
+                f'{total_labels} total, {positive_labels} positive, {negative_labels} negative. '
+                f'Required minimums: {min_labels} total, {min_positive} positive, {min_negative} negative.'
+            )
+            if not force:
+                self.stdout.write(self.style.ERROR(message))
+                self.stdout.write(self.style.WARNING('Label more HumanLayerEvent records in admin or rerun with --force for experimentation.'))
+                sys.exit(1)
+            self.stdout.write(self.style.WARNING(message))
+
         training_data = [(label.event, 1 if label.is_violation else 0) for label in labels]
-        
-        # Train model
+
         self.stdout.write(f'\nTraining {algorithm} model...')
-        scorer = MLRiskScorer()
-        
+        scorer = MLRiskScorer(model_version=version)
+
         metrics = scorer.train(
             training_data=training_data,
             algorithm=algorithm,
             tune_hyperparameters=tune,
             cv_folds=cv_folds
         )
-        
-        # Display results
+
         self.stdout.write(self.style.SUCCESS('\n=== Training Results ==='))
         self.stdout.write(f'Algorithm: {metrics["algorithm"]}')
         self.stdout.write(f'Samples: {metrics["n_samples"]} ({metrics["n_positive"]} positive, {metrics["n_negative"]} negative)')
@@ -112,28 +131,23 @@ class Command(BaseCommand):
         self.stdout.write(f'  ROC AUC:   {metrics["roc_auc"]:.3f}')
         self.stdout.write(f'\nCross-Validation ({cv_folds}-fold):')
         self.stdout.write(f'  F1 Mean:   {metrics["cv_f1_mean"]:.3f} ± {metrics["cv_f1_std"]:.3f}')
-        
+
         if 'feature_importance' in metrics:
             self.stdout.write(f'\nTop Features:')
             for feat, imp in list(metrics['feature_importance'].items())[:5]:
                 self.stdout.write(f'  {feat}: {imp:.4f}')
-        
+
         if metrics['best_params']:
             self.stdout.write(f'\nBest Hyperparameters:')
             for param, value in metrics['best_params'].items():
                 self.stdout.write(f'  {param}: {value}')
-        
-        # Save model
-        if version is None:
-            version = f'v{timezone.now().strftime("%Y%m%d_%H%M%S")}'
-        
+
         scorer.save_model(version=version)
         self.stdout.write(self.style.SUCCESS(f'\nModel saved with version: {version}'))
-        
-        # Show usage instructions
+
         self.stdout.write(self.style.WARNING('\nTo use this model in production:'))
-        self.stdout.write(f'  1. Set ML_ENABLED=True in settings.py')
-        self.stdout.write(f'  2. Set ML_MODEL_VERSION="{version}" (or use "latest")')
-        self.stdout.write(f'  3. Restart Django application')
-        self.stdout.write(f'\nTo validate:')
-        self.stdout.write(f'  python manage.py validate_ml_model --version {version}')
+        self.stdout.write('  1. Keep ML_ENABLED=True in the environment')
+        self.stdout.write(f'  2. Set ML_MODEL_VERSION="{version}"')
+        self.stdout.write('  3. Restart Django application')
+        self.stdout.write('\nTo validate:')
+        self.stdout.write(f'  python manage.py validate_scorer --version {version}')

@@ -4,11 +4,14 @@ Provides interpretable explanations for ML model predictions to support
 human decision-making and regulatory compliance.
 """
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional, cast
 import numpy as np
 from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
+
+shap = None
+lime = None
 
 try:
     import shap
@@ -40,21 +43,23 @@ class ModelExplainer:
         self.training_data = training_data
         
         # Initialize SHAP explainer
+        shap_module = cast(Any, shap)
+        lime_module = cast(Any, lime)
         try:
-            self.shap_explainer = shap.TreeExplainer(model)
+            self.shap_explainer = shap_module.TreeExplainer(model)
         except Exception as e:
             logger.warning(f'Failed to create SHAP TreeExplainer: {e}. Using KernelExplainer.')
             if training_data is not None:
-                self.shap_explainer = shap.KernelExplainer(
+                self.shap_explainer = shap_module.KernelExplainer(
                     model.predict_proba,
-                    shap.sample(training_data, 100)
+                    shap_module.sample(training_data, 100)
                 )
             else:
                 self.shap_explainer = None
         
         # Initialize LIME explainer
         if training_data is not None:
-            self.lime_explainer = lime.lime_tabular.LimeTabularExplainer(
+            self.lime_explainer = lime_module.lime_tabular.LimeTabularExplainer(
                 training_data,
                 feature_names=feature_names,
                 class_names=['Normal', 'Violation'],
@@ -97,10 +102,14 @@ class ModelExplainer:
         # Sort by absolute SHAP value
         feature_importance.sort(key=lambda x: abs(x['shap_value']), reverse=True)
         
+        expected_value = getattr(self.shap_explainer, 'expected_value', 0.0)
+        if isinstance(expected_value, (list, tuple, np.ndarray)):
+            expected_value = expected_value[0] if len(expected_value) > 0 else 0.0
+
         return {
             'method': 'SHAP',
             'top_features': feature_importance[:top_k],
-            'base_value': float(self.shap_explainer.expected_value) if hasattr(self.shap_explainer, 'expected_value') else 0.0,
+            'base_value': float(expected_value or 0.0),
         }
     
     def explain_prediction_lime(self, instance: np.ndarray, top_k: int = 10) -> Dict[str, Any]:
@@ -257,7 +266,7 @@ def explain_violation_prediction(violation_id: int) -> Dict[str, Any]:
         Explanation dictionary
     """
     from policy.models import Violation, HumanLayerEvent
-    from policy.ml_scorer import MLRiskScorer
+    from policy.ml_scorer import get_ml_scorer
     
     # Get violation and associated event
     violation = Violation.objects.get(id=violation_id)
@@ -265,15 +274,15 @@ def explain_violation_prediction(violation_id: int) -> Dict[str, Any]:
     # Find the event that triggered this violation
     event = HumanLayerEvent.objects.filter(
         user=violation.user,
-        timestamp__lte=violation.detected_at
+        timestamp__lte=violation.timestamp
     ).order_by('-timestamp').first()
     
     if not event:
         return {'error': 'No associated event found'}
     
     # Load ML model
-    scorer = MLRiskScorer()
-    if scorer.model is None:
+    scorer = get_ml_scorer()
+    if not scorer.is_ready():
         return {'error': 'ML model not available'}
     
     # Extract features
@@ -282,7 +291,7 @@ def explain_violation_prediction(violation_id: int) -> Dict[str, Any]:
     # Create explainer
     explainer = ModelExplainer(
         model=scorer.model,
-        feature_names=scorer.feature_names,
+        feature_names=scorer.feature_names or [],
         training_data=None  # Could load training data from cache
     )
     
@@ -290,6 +299,6 @@ def explain_violation_prediction(violation_id: int) -> Dict[str, Any]:
     explanation = explainer.explain_prediction(features, method='both')
     explanation['violation_id'] = violation_id
     explanation['event_id'] = event.id
-    explanation['user'] = violation.user.username
+    explanation['user'] = violation.user.username if violation.user else 'unknown'
     
     return explanation

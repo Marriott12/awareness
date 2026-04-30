@@ -1,3 +1,5 @@
+import importlib
+
 from django.contrib import admin, messages
 from .models import Policy, Control, Rule, Threshold, Violation, ViolationActionLog
 from .models import Evidence, HumanLayerEvent, PolicyHistory
@@ -7,6 +9,13 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.conf import settings
 from .forms import ControlForm
+
+try:
+    jsonschema = importlib.import_module('jsonschema')
+except Exception:
+    jsonschema = None
+
+from .expression_schema import EXPRESSION_SCHEMA
 
 
 @admin.register(Policy)
@@ -23,29 +32,25 @@ class ControlAdmin(admin.ModelAdmin):
 
     actions = ('validate_selected_expressions',)
 
+    @admin.display(boolean=True, description='Expression Valid')
     def expression_valid(self, obj):
         # quick validation indicator; non-invasive
         expr = getattr(obj, 'expression', None)
         if expr is None:
             return True
         try:
-            from .expression_schema import EXPRESSION_SCHEMA
-            import jsonschema
+            if jsonschema is None:
+                return False
             jsonschema.validate(instance=expr, schema=EXPRESSION_SCHEMA)
             return True
         except Exception:
             return False
-    expression_valid.boolean = True
-    expression_valid.short_description = 'Expression Valid'
 
     def validate_selected_expressions(self, request, queryset):
-        try:
-            import jsonschema
-        except Exception:
+        if jsonschema is None:
             self.message_user(request, 'jsonschema is required to validate expressions', level=messages.ERROR)
             return
         errors = []
-        from .expression_schema import EXPRESSION_SCHEMA
         for c in queryset:
             expr = getattr(c, 'expression', None)
             if expr is None:
@@ -59,7 +64,6 @@ class ControlAdmin(admin.ModelAdmin):
                 self.message_user(request, f'Control {c.pk} invalid: {err}', level=messages.ERROR)
         else:
             self.message_user(request, 'All selected expressions are valid', level=messages.INFO)
-    validate_selected_expressions.short_description = 'Validate expression for selected controls'
 
     def save_model(self, request, obj, form, change):
         # Validate composite expression against schema if present
@@ -107,7 +111,6 @@ class ViolationAdmin(admin.ModelAdmin):
                 details={'source': 'admin_bulk_action'}
             )
         self.message_user(request, f"Acknowledged {updated} violations")
-    acknowledge_selected.short_description = 'Acknowledge selected violations'
 
     def resolve_selected(self, request, queryset):
         from django.utils import timezone
@@ -122,7 +125,6 @@ class ViolationAdmin(admin.ModelAdmin):
                 details={'source': 'admin_bulk_action'}
             )
         self.message_user(request, f"Resolved {updated} violations")
-    resolve_selected.short_description = 'Resolve selected violations'
 
     def export_selected(self, request, queryset):
         """Export selected violations as NDJSON with detached signature file written to a temp dir.
@@ -154,7 +156,6 @@ class ViolationAdmin(admin.ModelAdmin):
         # record audit
         ExportAudit.objects.create(user=request.user, object_type='violation', object_count=queryset.count(), details={'out_path': out_path, 'sig_path': sig_path})
         self.message_user(request, f"Exported {queryset.count()} violations to {out_path} (signature {sig_path})")
-    export_selected.short_description = 'Export selected violations (NDJSON + detached sig)'
 
 
 @admin.register(Evidence)
@@ -185,14 +186,42 @@ class HumanLayerEventAdmin(admin.ModelAdmin):
     list_display = ('event_type', 'summary', 'user', 'timestamp', 'source', 'is_processed')
     readonly_fields = ('id', 'timestamp', 'user', 'event_type', 'source', 'summary', 'details', 'related_policy', 'related_control', 'related_violation')
     search_fields = ('summary', 'user__username', 'source')
+    list_filter = ('event_type', 'source', 'timestamp')
+    actions = ('label_as_violation', 'label_as_non_violation')
+
+    def _default_ml_experiment(self):
+        experiment, _ = Experiment.objects.get_or_create(
+            name='Production Labels',
+            defaults={'config': {'source': 'admin_labeling_workflow'}},
+        )
+        return experiment
+
+    def label_as_violation(self, request, queryset):
+        experiment = self._default_ml_experiment()
+        for event in queryset:
+            GroundTruthLabel.objects.update_or_create(
+                experiment=experiment,
+                event=event,
+                defaults={'is_violation': True},
+            )
+        self.message_user(request, f'Labeled {queryset.count()} events as violations in experiment "{experiment.name}".')
+
+    def label_as_non_violation(self, request, queryset):
+        experiment = self._default_ml_experiment()
+        for event in queryset:
+            GroundTruthLabel.objects.update_or_create(
+                experiment=experiment,
+                event=event,
+                defaults={'is_violation': False},
+            )
+        self.message_user(request, f'Labeled {queryset.count()} events as non-violations in experiment "{experiment.name}".')
     
     def is_processed(self, obj):
         """Show processed status from EventMetadata."""
         try:
             return obj.metadata.processed
-        except:
+        except Exception:
             return False
-    is_processed.boolean = True
 
 
 from .models import EventMetadata
@@ -204,9 +233,9 @@ class EventMetadataAdmin(admin.ModelAdmin):
     search_fields = ('event__summary', 'signature')
     list_filter = ('processed',)
     
+    @admin.display(boolean=True)
     def has_signature(self, obj):
         return bool(obj.signature)
-    has_signature.boolean = True
 
 
 @admin.register(PolicyHistory)
@@ -254,8 +283,9 @@ class SyntheticUserAdmin(admin.ModelAdmin):
 @admin.register(GroundTruthLabel)
 class GroundTruthLabelAdmin(admin.ModelAdmin):
     list_display = ('event', 'experiment', 'is_violation')
-    list_filter = ('experiment', 'is_violation')
-    search_fields = ('event__summary',)
+    list_filter = ('experiment', 'is_violation', 'event__event_type')
+    search_fields = ('event__summary', 'event__user__username', 'experiment__name')
+    autocomplete_fields = ('event', 'experiment')
 
 
 @admin.register(DetectionMetric)

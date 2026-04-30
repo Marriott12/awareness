@@ -15,3 +15,10 @@ class PolicyConfig(AppConfig):
             import logging
 
             logging.getLogger(__name__).exception('Failed to import policy.telemetry_signals')
+
+        try:
+            from . import checks  # noqa: F401
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception('Failed to import policy.checks')
